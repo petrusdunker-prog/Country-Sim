@@ -1493,7 +1493,7 @@ function countryClick(event,d){
   const iso=String(d.id);
   let pid=null;
   for(const [id,m] of Object.entries(PLAYER_META)) if(norm(m.isoNum)===norm(iso)){pid=id;break;}
-  if(pid) renderCountryCard(pid);
+  if(pid){ renderCountryCard(pid); switchPanelTab('actions'); }
   else if(NPC_META[iso]||NPC_META[norm(iso)]) renderNpcCard(iso);
   else renderMinorCard(iso);
 }
@@ -1610,7 +1610,6 @@ function renderCountryCard(id){
   `;
 
   renderActionPanel(id);
-  switchPanelTab('actions');
 }
 
 function mr(l,v){ return `<div class="mil-row"><span class="mil-label">${l}</span><span>${v}</span></div>`; }
@@ -1793,7 +1792,7 @@ function renderBottomBar(){
   if(_roomCode){
     const total = Object.keys(GS.slots||{}).length;
     const submitted = Object.values(GS.countries||{}).filter(c=>c.submitted).length;
-    const phase = GS.phase === 'processing' ? '⚙️ Processing…' : GS.phase === 'collecting' ? '📋 Collecting' : GS.phase;
+    const phase = GS.phase === 'processing' ? '⚙️ Processing…' : GS.phase === 'collecting' ? '📋 Collecting' : GS.phase === 'setup' ? '⚙️ Setup' : GS.phase || 'Waiting';
     const remaining = GS.turnDeadline ? GS.turnDeadline - Date.now() : null;
     const timerStr = remaining!==null ? (remaining>0 ? `⏱ ${formatCountdown(remaining)}` : '⏱ Expired') : '⏱ No timer';
     const timerColor = remaining!==null && remaining<3600000 ? 'var(--red)' : 'var(--orange)';
@@ -1811,7 +1810,7 @@ function renderBottomBar(){
 
 function countryPillClick(id){
   renderCountryCard(id);
-  // Switch to world tab if not already there
+  switchPanelTab('actions');
   activateTab('world');
 }
 
@@ -4242,12 +4241,14 @@ function updateAllUI(){
   if(activeTab==='intel')     renderIntelTab();
   if(activeTab==='press')     renderPressTab();
   if(activeTab==='market')    renderMarketTab();
-  // Refresh right panel if a country is selected
+  // Refresh right panel if a country is selected, else show own country
   const sel = gCountries?.selectAll('.country-path.selected');
   if(sel && !sel.empty()){
     const iso = String(sel.datum().id);
     let pid=null; for(const [id,m] of Object.entries(PLAYER_META)) if(norm(m.isoNum)===norm(iso)){pid=id;break;}
     if(pid) renderCountryCard(pid);
+  } else if(session.country && session.country!=='gm' && session.role!=='spectator' && GS.countries?.[session.country]){
+    renderCountryCard(session.country);
   }
 }
 
