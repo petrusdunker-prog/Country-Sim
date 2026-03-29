@@ -439,12 +439,6 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
         <div class="lc-title">Play Solo</div>
         <div class="lc-desc">Play offline against AI-controlled nations. No Firebase needed — runs entirely in your browser.</div>
       </div>
-      <div class="landing-divider">or</div>
-      <div class="landing-card full-width" onclick="enterMainGame()">
-        <div class="lc-icon">👑</div>
-        <div class="lc-title">Main Game (GM-managed)</div>
-        <div class="lc-desc">Join the hosted game that requires a human Game Master. Use this if you have a GM running the session.</div>
-      </div>
       <div class="landing-divider">more options</div>
       <div class="landing-cards">
         <div class="landing-card" onclick="showRoomBrowser()">
@@ -1935,6 +1929,7 @@ function renderGmConsole(){
       <button class="btn" id="exportBtn2" onclick="exportState()">📤 Export</button>
       <button class="btn" onclick="importState()">📥 Import</button>
       <button class="btn" style="border-color:var(--red);color:var(--red)" onclick="resetGame()">🔄 Reset Game</button>
+      ${_roomCode ? `<button class="btn" style="border-color:#8b1a1a;color:#ff6b6b;background:#1a0000" onclick="deleteRoom()">🗑 Delete Room</button>` : ''}
     </div>
     ${GS.turn===0?`<div style="margin-top:6px;font-size:11px;color:var(--orange);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">⚠ Turn 1 note: "Noah's Australia runs as Communist. Communism modifiers apply."</div>`:''}
     <h3 style="font-size:12px;font-weight:700;margin-top:14px;margin-bottom:6px">Submitted Actions</h3>
@@ -2028,9 +2023,22 @@ function renderGmConsole(){
 // ── Turn management (GM only) ──
 function advanceTurn(){
   if(session.country !== 'gm'){ toast('Only the GM can advance the turn','error'); return; }
+  const playerCount = Object.keys(GS.slots||{}).length;
+  if(playerCount < 1){ toast('At least 1 player must join before starting a turn.','error'); return; }
   GS.phase='collecting';
   Object.values(GS.countries).forEach(c=>{ c.submitted=false; c.actions={category:'',actionId:'',note:'',warTarget:''}; });
   pushState(); toast('Collecting actions for Turn '+(GS.turn+1));
+}
+
+function deleteRoom(){
+  if(session.country !== 'gm'){ toast('Only the GM can delete a room','error'); return; }
+  if(!_roomCode){ toast('No room to delete','error'); return; }
+  if(!confirm('Delete room ' + _roomCode + '? This cannot be undone.')){ return; }
+  db.ref('rooms/' + _roomCode).remove().then(()=>{
+    toast('Room deleted.','success');
+    _roomCode = null; db = null; gsRef = null;
+    showLanding();
+  }).catch(e=>toast('Failed to delete room: '+e.message,'error'));
 }
 
 // ── Offline AI: generate safe steady-state action for a player who is away ──
@@ -2078,6 +2086,7 @@ function toggleOfflineAI(id){
 
 function processTurn(){
   if(session.country !== 'gm'){ toast('Only the GM can process turns','error'); return; }
+  if(Object.keys(GS.slots||{}).length < 1){ toast('At least 1 player must be in the game.','error'); return; }
   const entry={turn:GS.turn+1,date:getTurnDate(GS.turn+1),actions:{}};
   // Auto-generate safe actions for offline AI players before processing
   Object.entries(GS.countries).forEach(([id,c])=>{
