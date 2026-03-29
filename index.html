@@ -274,7 +274,9 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .login-btn{width:100%;padding:10px;font-size:14px;font-weight:700;border-radius:var(--radius);cursor:pointer;background:var(--accent);color:#000;border:none;transition:opacity .15s}
 .login-btn:hover{opacity:.85}
 .login-players{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
-.player-chip{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim)}
+.player-chip{font-size:11px;padding:4px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim);cursor:pointer;transition:border-color .15s,color .15s;touch-action:manipulation}
+.player-chip:hover{border-color:var(--accent);color:var(--text)}
+.login-players-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;width:100%;text-align:center}
 
 /* ── SETUP BANNER ── */
 #setupBanner{display:none;position:fixed;top:var(--header-h);left:0;right:0;background:#3a2a1c;border-bottom:1px solid var(--orange);padding:10px 16px;z-index:90;font-size:12px}
@@ -558,13 +560,7 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
     </div>
     <div class="login-error" id="loginError"></div>
     <button class="login-btn" onclick="tryLogin()">Enter Game</button>
-    <div class="login-players">
-      <span class="player-chip">🇺🇸 Josh</span>
-      <span class="player-chip">🇵🇱 Lachlan</span>
-      <span class="player-chip">🇦🇺 Noah</span>
-      <span class="player-chip">🇷🇺 Nicholas</span>
-      <span class="player-chip">🇧🇷 Petrus</span>
-    </div>
+    <div class="login-players" id="loginPlayers"></div>
   </div>
 </div>
 
@@ -2678,6 +2674,18 @@ function showJoinRoom(){
   document.getElementById('joinRoomCode').focus();
 }
 
+function renderLoginPlayers(slots){
+  const el = document.getElementById('loginPlayers');
+  if(!el) return;
+  const entries = Object.entries(slots||{}).filter(([,s])=>s && s.player && s.player !== 'AI');
+  if(!entries.length){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="login-players-label">Already in game</div>`
+    + entries.map(([country, slot])=>{
+        const flag = PLAYABLE_COUNTRIES[country]?.flag || '🌍';
+        return `<span class="player-chip" onclick="document.getElementById('loginName').value='${escHtml(slot.player)}';document.getElementById('loginName').focus()">${flag} ${escHtml(slot.player)}</span>`;
+      }).join('');
+}
+
 function enterMainGame(){
   // No room code — use original gameState path
   _roomCode = null;
@@ -2686,6 +2694,14 @@ function enterMainGame(){
   document.getElementById('loginRoomBadge').classList.add('hidden');
   document.getElementById('loginSubtitle').textContent='Enter your name to join the game';
   document.getElementById('pwField').classList.remove('hidden'); // GM login visible for main game
+  // Load existing players from Firebase
+  document.getElementById('loginPlayers').innerHTML='';
+  if(isFirebaseConfigured()){
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.database().ref('gameState/slots').once('value', snap=>{
+      renderLoginPlayers(snap.val()||{});
+    }).catch(()=>{});
+  }
 }
 
 function updateVisLabel(){
@@ -2753,6 +2769,14 @@ function showLoginForRoom(code, isCreator){
   document.getElementById('loginSubtitle').textContent = 'Enter your name to join Room ' + code;
   document.getElementById('pwField').classList.add('hidden'); // no GM login in rooms
   if(isCreator) session = { _roomCreator: true }; // temp marker for first-boot room init
+  // Load existing players from this room
+  document.getElementById('loginPlayers').innerHTML='';
+  if(isFirebaseConfigured()){
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.database().ref('rooms/' + code + '/gameState/slots').once('value', snap=>{
+      renderLoginPlayers(snap.val()||{});
+    }).catch(()=>{});
+  }
 }
 
 function leaveRoom(){
