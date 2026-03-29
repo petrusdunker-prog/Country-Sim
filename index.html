@@ -2034,10 +2034,14 @@ function deleteRoom(){
   if(session.country !== 'gm'){ toast('Only the GM can delete a room','error'); return; }
   if(!_roomCode){ toast('No room to delete','error'); return; }
   if(!confirm('Delete room ' + _roomCode + '? This cannot be undone.')){ return; }
-  db.ref('rooms/' + _roomCode).remove().then(()=>{
-    toast('Room deleted.','success');
+  const codeToDelete = _roomCode;
+  const dbToUse = db;
+  dbToUse.ref('rooms/' + codeToDelete).remove().then(()=>{
+    toast('Room ' + codeToDelete + ' deleted.','success');
     _roomCode = null; db = null; gsRef = null;
     showLanding();
+    // Force-refresh room browser after a short delay to let Firebase propagate
+    setTimeout(()=>{ if(document.getElementById('roomBrowserList')) loadRoomBrowser(); }, 800);
   }).catch(e=>toast('Failed to delete room: '+e.message,'error'));
 }
 
@@ -3166,7 +3170,7 @@ function loadRoomBrowser(){
   listEl.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:8px 0">Loading…</div>';
   if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   const tdb=firebase.database();
-  tdb.ref('rooms').once('value', snap=>{
+  tdb.ref('rooms').orderByKey().once('value', snap=>{
     const rooms=snap.val()||{};
     const entries=Object.entries(rooms).filter(([,room])=>!room.meta?.isPrivate);
     if(!entries.length){ listEl.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:8px 0">No public rooms found.</div>'; return; }
