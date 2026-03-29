@@ -467,6 +467,15 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
       </div>
       <label>Room Name <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
       <input id="createRoomName" type="text" placeholder="e.g. Friday Night Game" autocomplete="off" maxlength="40">
+      <label style="margin-top:4px">Visibility</label>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:2px solid var(--border2);border-radius:var(--radius);flex:1;text-transform:none;letter-spacing:0;font-size:12px" id="visPublicLabel">
+          <input type="radio" name="roomVisibility" value="public" checked onchange="updateVisLabel()"> 🌐 Public <span style="color:var(--text-dim);font-size:10px">(appears in browser)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:2px solid var(--border2);border-radius:var(--radius);flex:1;text-transform:none;letter-spacing:0;font-size:12px" id="visPrivateLabel">
+          <input type="radio" name="roomVisibility" value="private" onchange="updateVisLabel()"> 🔒 Private <span style="color:var(--text-dim);font-size:10px">(code only)</span>
+        </label>
+      </div>
       <div class="landing-err" id="createRoomErr"></div>
       <div class="room-actions">
         <button class="room-back" onclick="backToLanding()">← Back</button>
@@ -1630,6 +1639,7 @@ function renderActionPanel(id){
   if(isGM && !isMyCountry){ el.innerHTML = c.submitted ? `<div class="submitted-msg">✓ ${id} has submitted.</div>` : `<div class="locked-msg">… ${id} hasn't submitted yet.</div>`; return; }
   if(GS.phase === 'setup'){ el.innerHTML=`<p class="locked-msg">Waiting for the GM to start the turn.</p>`; return; }
   if(GS.phase === 'processing'){ el.innerHTML=`<div class="submitted-msg">⚙️ AI is processing the turn…</div>`; return; }
+  if(GS.slots[id]?.offlineAI){ el.innerHTML=`<div class="submitted-msg" style="color:var(--orange)">🤖 Offline AI Active<br><span style="font-size:10px;color:var(--text-dim)">The GM has set your country to AI management while you're away. Your country is being maintained safely. Ask the GM to return control.</span></div>`; return; }
   if(c.submitted){ el.innerHTML=`<div class="submitted-msg">✓ Actions submitted!<br><span style="font-size:10px;color:var(--text-dim)">Waiting for other players…</span></div>`; return; }
 
   const sp = c.stockpile || {constructionMats:0,critMinerals:0,energy:0};
@@ -1935,11 +1945,17 @@ function renderGmConsole(){
     <div class="actions-grid">
       ${Object.entries(GS.countries).map(([id,c])=>{
         const m=PLAYER_META[id];
-        return `<div class="player-action-card">
+        const isOfflineAI = !!GS.slots[id]?.offlineAI;
+        return `<div class="player-action-card" style="${isOfflineAI?'border-color:var(--orange);':''}">
           <div class="pac-header">
             <span class="pac-flag">${m.flag}</span>
-            <div><div class="pac-name">${id}</div><div class="pac-player">${m.player}</div></div>
+            <div><div class="pac-name">${id}</div><div class="pac-player">${m.player}${isOfflineAI?' <span style="color:var(--orange);font-size:9px;font-weight:700">🤖 OFFLINE AI</span>':''}</div></div>
             <span class="pac-status ${c.submitted?'submitted':'pending'}">${c.submitted?'✓ Submitted':'… Pending'}</span>
+          </div>
+          <div style="margin-top:6px">
+            <button class="btn" style="font-size:10px;padding:3px 10px;${isOfflineAI?'border-color:var(--green);color:var(--green)':'border-color:var(--orange);color:var(--orange)'}" onclick="toggleOfflineAI('${id}')">
+              ${isOfflineAI ? '👤 Return to Player' : '🤖 Set Offline AI'}
+            </button>
           </div>
           ${(() => {
             const a = c.actions;
@@ -2021,9 +2037,56 @@ function advanceTurn(){
   pushState(); toast('Collecting actions for Turn '+(GS.turn+1));
 }
 
+// ── Offline AI: generate safe steady-state action for a player who is away ──
+function generateOfflineAIAction(id, c){
+  const sp = c.stockpile || {constructionMats:0, critMinerals:0, energy:0};
+  // Safe project actions — no war, no aggression
+  const safeProjects = ACTION_COSTS.projects.filter(a =>
+    c.economy.pool >= a.eco &&
+    (sp.constructionMats||0) >= (a.mat||0) &&
+    (sp.critMinerals||0) >= (a.min||0) &&
+    (sp.energy||0) >= (a.egy||0)
+  );
+  // Safe military: only buy battalions (defensive), no deployment against players
+  const safeMilitary = ACTION_COSTS.military.filter(a =>
+    a.id === 'battalion' && c.economy.pool >= a.eco
+  );
+  let chosen = null, chosenCat = '';
+  if(safeProjects.length){
+    // Prefer eco_reform or minor_proj for steady growth
+    chosen = safeProjects.find(a=>a.id==='eco_reform') || safeProjects.find(a=>a.id==='minor_proj') || safeProjects[0];
+    chosenCat = 'projects';
+  } else if(safeMilitary.length){
+    chosen = safeMilitary[0];
+    chosenCat = 'military';
+  }
+  if(chosen){
+    c.actions = { category:chosenCat, actionId:chosen.id, note:'Steady state — player offline.', warTarget:'' };
+  } else {
+    c.actions = { category:'', actionId:'', note:'', warTarget:'' };
+  }
+  c.submitted = true;
+}
+
+// ── GM: toggle offline AI control for a player country ──
+function toggleOfflineAI(id){
+  if(!GS || session.country !== 'gm') return;
+  const slot = GS.slots[id];
+  if(!slot) return;
+  const nowAI = !slot.offlineAI;
+  GS.slots[id].offlineAI = nowAI;
+  pushState();
+  toast(nowAI ? `🤖 ${id} is now AI-controlled (offline mode)` : `👤 ${id} returned to player control`, nowAI ? 'info' : 'success');
+  renderGmConsole();
+}
+
 function processTurn(){
   if(session.country !== 'gm'){ toast('Only the GM can process turns','error'); return; }
   const entry={turn:GS.turn+1,date:getTurnDate(GS.turn+1),actions:{}};
+  // Auto-generate safe actions for offline AI players before processing
+  Object.entries(GS.countries).forEach(([id,c])=>{
+    if(GS.slots[id]?.offlineAI && !c.submitted) generateOfflineAIAction(id, c);
+  });
   Object.entries(GS.countries).forEach(([id,c])=>{
     entry.actions[id]={...c.actions};
     // Apply action effects
@@ -2625,6 +2688,12 @@ function enterMainGame(){
   document.getElementById('pwField').classList.remove('hidden'); // GM login visible for main game
 }
 
+function updateVisLabel(){
+  const val = document.querySelector('input[name="roomVisibility"]:checked')?.value;
+  document.getElementById('visPublicLabel').style.borderColor = val==='public' ? 'var(--accent)' : 'var(--border2)';
+  document.getElementById('visPrivateLabel').style.borderColor = val==='private' ? 'var(--accent)' : 'var(--border2)';
+}
+
 function createRoom(){
   if(!isFirebaseConfigured()){ document.getElementById('createRoomErr').textContent='Firebase must be configured to use rooms.'; return; }
   // If a code was already generated, proceed to login
@@ -2634,12 +2703,13 @@ function createRoom(){
     return;
   }
   const roomName = document.getElementById('createRoomName').value.trim() || 'Untitled Room';
+  const isPrivate = document.querySelector('input[name="roomVisibility"]:checked')?.value === 'private';
   const btn = document.getElementById('createRoomBtn');
   btn.textContent='Creating…'; btn.disabled=true;
   const code = genRoomCode();
   if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   const tempDb = firebase.database();
-  const meta = { code, name: roomName, createdAt: Date.now(), aiGm: true, autoMinutes: 60 };
+  const meta = { code, name: roomName, createdAt: Date.now(), aiGm: true, autoMinutes: 60, isPrivate: isPrivate || false };
   tempDb.ref('rooms/' + code + '/meta').set(meta).then(() => {
     _roomCode = code;
     db = tempDb;
@@ -2707,7 +2777,11 @@ function checkAiAutoProcess(){
   if(!_roomCode || !GS || GS.phase !== 'collecting') return;
   const slotIds = Object.keys(GS.slots || {});
   if(slotIds.length === 0) return;
-  const allIn = slotIds.every(id => GS.countries[id] && GS.countries[id].submitted);
+  // Offline AI players count as submitted (they'll be handled in aiProcessTurn)
+  const allIn = slotIds.every(id => {
+    const c = GS.countries[id];
+    return c && (c.submitted || GS.slots[id]?.offlineAI);
+  });
   if(allIn){
     toast('✅ All players submitted — AI GM is processing…','success');
     setTimeout(aiProcessTurn, 2000);
@@ -2721,6 +2795,10 @@ function aiProcessTurn(){
   pushState(); // lock phase immediately so other clients see it
   setTimeout(() => {
     const entry = { turn: GS.turn+1, date: getTurnDate(GS.turn+1), actions: {} };
+    // Auto-generate safe actions for offline AI players before processing
+    Object.entries(GS.countries).forEach(([id,c])=>{
+      if(GS.slots[id]?.offlineAI && !c.submitted) generateOfflineAIAction(id, c);
+    });
     Object.entries(GS.countries).forEach(([id, c]) => {
       entry.actions[id] = Object.assign({}, c.actions);
       // Apply structured action effects
@@ -3058,8 +3136,8 @@ function loadRoomBrowser(){
   const tdb=firebase.database();
   tdb.ref('rooms').once('value', snap=>{
     const rooms=snap.val()||{};
-    const entries=Object.entries(rooms);
-    if(!entries.length){ listEl.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:8px 0">No active rooms found.</div>'; return; }
+    const entries=Object.entries(rooms).filter(([,room])=>!room.meta?.isPrivate);
+    if(!entries.length){ listEl.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:8px 0">No public rooms found.</div>'; return; }
     listEl.innerHTML=entries.map(([code,room])=>{
       const meta=room.meta||{};
       const gs=room.gameState||{};
