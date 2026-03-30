@@ -4491,9 +4491,9 @@ function setupHeaderForRole(){
     roomBadge.classList.add('hidden');
   }
 
-  // Tab visibility — GM tab hidden in rooms (AI GM handles it)
-  document.querySelector('.gm-tab').classList.toggle('hidden', !isGM || inRoom);
-  document.getElementById('tabDashboard').classList.toggle('hidden', isGM && !inRoom);
+  // Tab visibility — GM always gets GM Console; never gets My Country
+  document.querySelector('.gm-tab').classList.toggle('hidden', !isGM);
+  document.getElementById('tabDashboard').classList.toggle('hidden', isGM);
 
   // GM view selector — only for main-game GM
   const gmSel = document.getElementById('gmViewSelect');
@@ -4582,6 +4582,8 @@ function bootUI(){
   renderGmConsole();
   renderLog();
   initMap();
+  // GM lands on the console, not My Country
+  if(session.country === 'gm') activateTab('gm');
 }
 
 // ══════════════════════════════════════════════════════════════
