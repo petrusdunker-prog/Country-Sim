@@ -2123,7 +2123,7 @@ function renderGmConsole(){
     </div>
     <h3 style="font-size:12px;font-weight:700;margin-top:16px;margin-bottom:6px">World Market</h3>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
-      ${Object.entries(GS.worldMarket).map(([r,d])=>`<div class="stat-box" style="min-width:110px"><div class="label">${r}</div><div class="value">${d.price} eco</div><div class="sub">${d.trend>0?'↑ Rising':d.trend<0?'↓ Falling':'→ Stable'}</div></div>`).join('')}
+      ${Object.entries(GS.worldMarket||{}).map(([r,d])=>`<div class="stat-box" style="min-width:110px"><div class="label">${r}</div><div class="value">${(d||{}).price||'?'} eco</div><div class="sub">${(d||{}).trend>0?'↑ Rising':(d||{}).trend<0?'↓ Falling':'→ Stable'}</div></div>`).join('')}
     </div>
     <h3 style="font-size:12px;font-weight:700;margin-top:16px;margin-bottom:6px">Prestige Leaderboard</h3>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
