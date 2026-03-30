@@ -2047,11 +2047,11 @@ function renderGmConsole(){
       <button class="btn" style="border-color:var(--red);color:var(--red)" onclick="resetGame()">🔄 Reset Game</button>
       ${_roomCode ? `<button class="btn" style="border-color:#8b1a1a;color:#ff6b6b;background:#1a0000" onclick="deleteRoom()">🗑 Delete Room</button>` : ''}
     </div>
-    ${GS.turn===0?`<div style="margin-top:6px;font-size:11px;color:var(--orange);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">⚠ Turn 1 note: "Noah's Australia runs as Communist. Communism modifiers apply."</div>`:''}
     <h3 style="font-size:12px;font-weight:700;margin-top:14px;margin-bottom:6px">Submitted Actions</h3>
     <div class="actions-grid">
       ${Object.entries(GS.countries).map(([id,c])=>{
         const m=PLAYER_META[id];
+        if(!m) return '';
         const isOfflineAI = !!GS.slots[id]?.offlineAI;
         return `<div class="player-action-card" style="${isOfflineAI?'border-color:var(--orange);':''}">
           <div class="pac-header">
@@ -2095,6 +2095,7 @@ function renderGmConsole(){
         <tbody>
           ${Object.entries(GS.countries).map(([id,c])=>{
             const m=PLAYER_META[id];
+            if(!m) return '';
             const next = c.economy.pool + c.economy.netIncome;
             const mil=c.military;
             const upkeep=mil.battalions+mil.mechDivisions*2+mil.fleets*2+mil.carrierGroups*5+mil.airWings+mil.bomberWings*4;
