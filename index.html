@@ -1436,11 +1436,23 @@ function normalizeState(s){
     if(!c.military.nukes) c.military.nukes = false;
     if(!c.stockpile)    c.stockpile    = {constructionMats:5, critMinerals:3, energy:6};
     if(!c.stockpileRate) c.stockpileRate = {constructionMats:1, critMinerals:0, energy:1};
-    // Migrate old single-action format to 3-slot array
+    // Migrate/restore actions to 3-slot array
     if(!c.actions || !Array.isArray(c.actions)){
-      const old = c.actions || {};
-      const first = { category:old.category||'', actionId:old.actionId||old.major||'', note:old.note||old.minor||'', warTarget:old.warTarget||'' };
-      c.actions = [first, {category:'',actionId:'',note:'',warTarget:''}, {category:'',actionId:'',note:'',warTarget:''}];
+      const raw = c.actions || {};
+      const keys = Object.keys(raw);
+      // Firebase stores arrays as {"0":{...},"1":{...},"2":{...}} — detect by all-numeric keys
+      if(keys.length > 0 && keys.every(k => Number.isInteger(Number(k)) && String(Number(k)) === k)){
+        const maxIdx = Math.max(...keys.map(Number));
+        c.actions = Array.from({length: Math.max(3, maxIdx+1)}, (_,i) =>
+          raw[i] ? raw[i] : {category:'',actionId:'',note:'',warTarget:''});
+      } else {
+        // Old pre-array single-action object format
+        c.actions = [
+          {category:raw.category||'', actionId:raw.actionId||raw.major||'', note:raw.note||raw.minor||'', warTarget:raw.warTarget||''},
+          {category:'',actionId:'',note:'',warTarget:''},
+          {category:'',actionId:'',note:'',warTarget:''}
+        ];
+      }
     }
     while(c.actions.length < 3) c.actions.push({category:'',actionId:'',note:'',warTarget:''});
     c.actions.forEach(a=>{ if(!a.category) a.category=''; if(!a.actionId) a.actionId=''; if(!a.note) a.note=''; if(!a.warTarget) a.warTarget=''; });
