@@ -1166,6 +1166,37 @@ function renderNpcCard(iso){
   `;
 }
 
+function renderPlayableNpcCard(name, pc){
+  document.getElementById('action-panel').innerHTML='<p class="placeholder" style="padding:16px">This country is not currently being played — no actions available.</p>';
+  switchPanelTab('economy');
+  document.getElementById('cc-military').innerHTML='';
+  document.getElementById('cc-diplo').innerHTML='';
+  const bal=pc.bal||{};
+  const brow=(label,val)=>{
+    if(val===undefined||val===null) return '';
+    const col=val>0?'var(--green)':val<0?'var(--red)':'var(--text-dim)';
+    return `<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-dim)">${label}</span>
+      <span style="color:${col};font-weight:700">${val>0?'+':''}${val}/turn</span></div>`;
+  };
+  document.getElementById('cc-economy').innerHTML=`
+    <div class="card-header">
+      <span class="card-flag">${pc.flag}</span>
+      <div><div class="card-name">${name}</div><div class="card-player text-dim">Available — not in current game</div></div>
+      <span class="card-gov" style="background:var(--surface2);color:var(--text-dim);font-size:9px">${pc.continent}</span>
+    </div>
+    <div class="section-title">⚔️ Starting Military</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${pc.bat} battalions · ${pc.up} upkeep/turn</div>
+    <div class="section-title">💰 Economy</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Starting pool: ${pc.eco} · Net income: +${pc.net}/turn · Population: ${pc.pop}M</div>
+    <div class="section-title">📦 Resource Balance</div>
+    <div style="padding:2px 0 8px">
+      ${brow('Food',bal.food)}${brow('Water',bal.water)}${brow('Minerals',bal.minerals)}${brow('Mfg Goods',bal.mfgGoods)}${brow('Services',bal.services)}${brow('Energy',bal.energy)}
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);padding:4px 0">Urbanisation: ${pc.urb}% · Media Freedom: ${pc.mf}%</div>
+  `;
+}
+
 function renderMinorCard(iso){
   const name = NPC_META[iso]||NPC_META[norm(iso)]||`Country #${iso}`;
   document.getElementById('action-panel').innerHTML='<p class="placeholder" style="padding:16px">Minor NPC — no actions available.</p>';
@@ -1491,15 +1522,25 @@ function countryHover(event,d){
   if(x+160>r.width) x=event.clientX-r.left-165; if(y<0) y=4;
   tip.style.left=x+'px'; tip.style.top=y+'px';
 }
+function findPlayableByISO(iso){
+  const n=String(parseInt(iso)||0);
+  for(const [name,pc] of Object.entries(PLAYABLE_COUNTRIES)){
+    if(String(parseInt(pc.isoNum)||0)===n) return {name,pc};
+  }
+  return null;
+}
+
 function countryClick(event,d){
   gCountries.selectAll('.country-path').classed('selected',false);
   d3.select(event.currentTarget).classed('selected',true);
   const iso=String(d.id);
   let pid=null;
   for(const [id,m] of Object.entries(PLAYER_META)) if(norm(m.isoNum)===norm(iso)){pid=id;break;}
-  if(pid){ renderCountryCard(pid); switchPanelTab('actions'); }
-  else if(NPC_META[iso]||NPC_META[norm(iso)]) renderNpcCard(iso);
-  else renderMinorCard(iso);
+  if(pid){ renderCountryCard(pid); switchPanelTab('actions'); return; }
+  const playable=findPlayableByISO(iso);
+  if(playable){ renderPlayableNpcCard(playable.name,playable.pc); return; }
+  if(NPC_META[iso]||NPC_META[norm(iso)]){ renderNpcCard(iso); return; }
+  renderMinorCard(iso);
 }
 
 // ══════════════════════════════════════════════════════════════
