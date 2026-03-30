@@ -834,7 +834,9 @@ const OBJECTIVE_TIERS = [
   [
     { id:'prestige_30', text:'Reach 30 Prestige Points', check: (c,gs) => c.prestige >= 30, reward:'🎖 +5 Prestige' },
     { id:'ally_1',      text:'Form 1 Formal Alliance',   check: (c,gs) => (c.diplomacy.allies||[]).length >= 1, reward:'🤝 +8 Diplo Points' },
-    { id:'bat_300',     text:'Maintain 300+ Battalions', check: (c,gs) => c.military.battalions >= 300, reward:'⚔️ +5 Prestige' },
+    { id:'bat_grow',    text:'Double your starting battalion count',
+      check: (c,gs,id) => { const s=(PLAYABLE_COUNTRIES[id]||{}).bat||50; return c.military.battalions >= Math.max(50, Math.min(300, s*2)); },
+      reward:'⚔️ +5 Prestige' },
     { id:'eco_50',      text:'Accumulate 50 Eco Pool',   check: (c,gs) => c.economy.pool >= 50, reward:'💰 +1 Net Income/turn' },
     { id:'tech1',       text:'Reach Tech Tier 1',        check: (c,gs) => c.tech.tier >= 1, reward:'🔬 +5 Tech Points' },
     { id:'stability_80',text:'Maintain 80+ Stability',   check: (c,gs) => c.stability >= 80, reward:'🏛 +5 Prestige' },
@@ -845,6 +847,9 @@ const OBJECTIVE_TIERS = [
     { id:'ally_3',      text:'Form 3 Formal Alliances',        check: (c,gs) => (c.diplomacy.allies||[]).length >= 3, reward:'🌐 Cross-continent bonus' },
     { id:'win_war',     text:'Win a War',                      check: (c,gs,id) => (gs.wars||[]).some(w=>w.result===id&&w.status==='ended'), reward:'⚔️ +15 Prestige' },
     { id:'eco_80',      text:'Accumulate 80 Eco Pool',         check: (c,gs) => c.economy.pool >= 80, reward:'💰 +2 Net Income/turn' },
+    { id:'bat_300',     text:'Field 300+ Battalions',
+      check: (c,gs,id) => { const s=(PLAYABLE_COUNTRIES[id]||{}).bat||50; return c.military.battalions >= Math.max(150, Math.min(300, s*4)); },
+      reward:'⚔️ +8 Prestige' },
     { id:'nuclear',     text:'Acquire Nuclear Weapons',        check: (c,gs) => c.military.nukes===true, reward:'☢️ +10 Prestige' },
     { id:'spy_3',       text:'Run 3 Successful Spy Operations',check: (c,gs) => (c.espionage?.successfulOps||0) >= 3, reward:'🕵️ Free spy action' },
   ],
@@ -915,55 +920,55 @@ const PROXY_SUPPORT_TYPES = [
 // bal=resource balance  pop=population(M)  urb=urbanisation%  mf=media freedom(0-100)
 const PLAYABLE_COUNTRIES = {
   // ── NORTH AMERICA ──
-  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:3,water:3,minerals:3,mfgGoods:2,services:2,energy:1}},
-  'Canada':          {iso2:'ca', flag:'🇨🇦',isoNum:'124',continent:'North America',  color:'#c04040',pop:38,  urb:82,mf:82,eco:28,bat:45, up:5, net:7, bal:{food:4,water:5,minerals:4,mfgGoods:1,services:2,energy:2}},
-  'Mexico':          {iso2:'mx', flag:'🇲🇽',isoNum:'484',continent:'North America',  color:'#27ae60',pop:127, urb:81,mf:30,eco:18,bat:150,up:15,net:5, bal:{food:2,water:2,minerals:3,mfgGoods:1,services:0,energy:1}},
+  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:3,water:3,minerals:2,mfgGoods:3,services:3,energy:0}},
+  'Canada':          {iso2:'ca', flag:'🇨🇦',isoNum:'124',continent:'North America',  color:'#c04040',pop:38,  urb:82,mf:82,eco:28,bat:45, up:5, net:7, bal:{food:4,water:5,minerals:4,mfgGoods:1,services:1,energy:3}},
+  'Mexico':          {iso2:'mx', flag:'🇲🇽',isoNum:'484',continent:'North America',  color:'#27ae60',pop:127, urb:81,mf:30,eco:18,bat:150,up:15,net:5, bal:{food:1,water:1,minerals:2,mfgGoods:-1,services:-1,energy:1}},
   // ── SOUTH AMERICA ──
-  'Brazil':          {iso2:'br', flag:'🇧🇷',isoNum:'076',continent:'South America',  color:'#2dc653',pop:215, urb:88,mf:55,eco:34,bat:300,up:30,net:6, bal:{food:5,water:5,minerals:4,mfgGoods:-1,services:-1,energy:1}},
-  'Argentina':       {iso2:'ar', flag:'🇦🇷',isoNum:'032',continent:'South America',  color:'#2980b9',pop:46,  urb:93,mf:65,eco:14,bat:80, up:8, net:5, bal:{food:4,water:4,minerals:3,mfgGoods:0,services:0,energy:0}},
-  'Colombia':        {iso2:'co', flag:'🇨🇴',isoNum:'170',continent:'South America',  color:'#e8a838',pop:52,  urb:82,mf:45,eco:10,bat:160,up:16,net:4, bal:{food:2,water:3,minerals:3,mfgGoods:0,services:0,energy:1}},
-  'Chile':           {iso2:'cl', flag:'🇨🇱',isoNum:'152',continent:'South America',  color:'#1565c0',pop:20,  urb:88,mf:65,eco:10,bat:50, up:5, net:5, bal:{food:2,water:3,minerals:4,mfgGoods:0,services:1,energy:0}},
-  'Venezuela':       {iso2:'ve', flag:'🇻🇪',isoNum:'862',continent:'South America',  color:'#c62828',pop:29,  urb:88,mf:10,eco:8, bat:90, up:9, net:3, bal:{food:0,water:3,minerals:2,mfgGoods:-1,services:-1,energy:4}},
-  'Peru':            {iso2:'pe', flag:'🇵🇪',isoNum:'604',continent:'South America',  color:'#6d4c41',pop:34,  urb:79,mf:50,eco:8, bat:80, up:8, net:4, bal:{food:2,water:3,minerals:4,mfgGoods:0,services:0,energy:0}},
+  'Brazil':          {iso2:'br', flag:'🇧🇷',isoNum:'076',continent:'South America',  color:'#2dc653',pop:215, urb:88,mf:55,eco:34,bat:300,up:30,net:6, bal:{food:5,water:5,minerals:4,mfgGoods:-2,services:-2,energy:1}},
+  'Argentina':       {iso2:'ar', flag:'🇦🇷',isoNum:'032',continent:'South America',  color:'#2980b9',pop:46,  urb:93,mf:65,eco:14,bat:80, up:8, net:5, bal:{food:4,water:3,minerals:2,mfgGoods:-1,services:-1,energy:0}},
+  'Colombia':        {iso2:'co', flag:'🇨🇴',isoNum:'170',continent:'South America',  color:'#e8a838',pop:52,  urb:82,mf:45,eco:10,bat:160,up:16,net:4, bal:{food:2,water:3,minerals:3,mfgGoods:-1,services:-1,energy:1}},
+  'Chile':           {iso2:'cl', flag:'🇨🇱',isoNum:'152',continent:'South America',  color:'#1565c0',pop:20,  urb:88,mf:65,eco:10,bat:50, up:5, net:5, bal:{food:1,water:2,minerals:5,mfgGoods:-1,services:0,energy:0}},
+  'Venezuela':       {iso2:'ve', flag:'🇻🇪',isoNum:'862',continent:'South America',  color:'#c62828',pop:29,  urb:88,mf:10,eco:8, bat:90, up:9, net:3, bal:{food:-1,water:2,minerals:2,mfgGoods:-3,services:-2,energy:6}},
+  'Peru':            {iso2:'pe', flag:'🇵🇪',isoNum:'604',continent:'South America',  color:'#6d4c41',pop:34,  urb:79,mf:50,eco:8, bat:80, up:8, net:4, bal:{food:1,water:2,minerals:4,mfgGoods:-1,services:-1,energy:0}},
   // ── EUROPE ──
-  'Russia':          {iso2:'ru', flag:'🇷🇺',isoNum:'643',continent:'Europe',         color:'#c9463c',pop:143, urb:75,mf:10,eco:34,bat:198,up:20,net:7, bal:{food:2,water:4,minerals:5,mfgGoods:-1,services:-1,energy:4}},
-  'United Kingdom':  {iso2:'gb', flag:'🇬🇧',isoNum:'826',continent:'Europe',         color:'#9b59b6',pop:67,  urb:84,mf:80,eco:38,bat:90, up:9, net:8, bal:{food:1,water:2,minerals:1,mfgGoods:2,services:4,energy:1}},
-  'France':          {iso2:'fr', flag:'🇫🇷',isoNum:'250',continent:'Europe',         color:'#3498db',pop:68,  urb:82,mf:75,eco:36,bat:115,up:12,net:7, bal:{food:3,water:3,minerals:1,mfgGoods:2,services:3,energy:0}},
-  'Germany':         {iso2:'de', flag:'🇩🇪',isoNum:'276',continent:'Europe',         color:'#7f8c8d',pop:84,  urb:78,mf:85,eco:44,bat:100,up:10,net:8, bal:{food:2,water:3,minerals:2,mfgGoods:5,services:3,energy:0}},
-  'Italy':           {iso2:'it', flag:'🇮🇹',isoNum:'380',continent:'Europe',         color:'#1a9966',pop:60,  urb:72,mf:68,eco:30,bat:95, up:10,net:6, bal:{food:2,water:2,minerals:1,mfgGoods:2,services:3,energy:0}},
-  'Spain':           {iso2:'es', flag:'🇪🇸',isoNum:'724',continent:'Europe',         color:'#c0392b',pop:47,  urb:81,mf:72,eco:22,bat:70, up:7, net:6, bal:{food:2,water:2,minerals:1,mfgGoods:1,services:3,energy:0}},
-  'Ukraine':         {iso2:'ua', flag:'🇺🇦',isoNum:'804',continent:'Europe',         color:'#f1c40f',pop:44,  urb:70,mf:55,eco:10,bat:100,up:10,net:4, bal:{food:4,water:3,minerals:3,mfgGoods:-1,services:-1,energy:0}},
-  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:3,minerals:2,mfgGoods:1,services:2,energy:0}},
-  'Netherlands':     {iso2:'nl', flag:'🇳🇱',isoNum:'528',continent:'Europe',         color:'#e67e22',pop:18,  urb:93,mf:92,eco:20,bat:28, up:3, net:9, bal:{food:2,water:2,minerals:1,mfgGoods:3,services:4,energy:1}},
-  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:2,water:4,minerals:3,mfgGoods:2,services:3,energy:0}},
-  'Norway':          {iso2:'no', flag:'🇳🇴',isoNum:'578',continent:'Europe',         color:'#1f618d',pop:5,   urb:83,mf:97,eco:18,bat:16, up:2, net:9, bal:{food:2,water:4,minerals:3,mfgGoods:1,services:2,energy:4}},
-  'Turkey':          {iso2:'tr', flag:'🇹🇷',isoNum:'792',continent:'Europe',         color:'#f39c12',pop:85,  urb:77,mf:20,eco:18,bat:200,up:20,net:4, bal:{food:3,water:2,minerals:2,mfgGoods:2,services:1,energy:0}},
-  'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:1,water:3,minerals:1,mfgGoods:3,services:4,energy:0}},
-  'Greece':          {iso2:'gr', flag:'🇬🇷',isoNum:'300',continent:'Europe',         color:'#00bcd4',pop:10,  urb:80,mf:55,eco:10,bat:80, up:8, net:4, bal:{food:1,water:2,minerals:1,mfgGoods:0,services:2,energy:0}},
+  'Russia':          {iso2:'ru', flag:'🇷🇺',isoNum:'643',continent:'Europe',         color:'#c9463c',pop:143, urb:75,mf:10,eco:34,bat:198,up:20,net:7, bal:{food:3,water:4,minerals:5,mfgGoods:-2,services:-2,energy:5}},
+  'United Kingdom':  {iso2:'gb', flag:'🇬🇧',isoNum:'826',continent:'Europe',         color:'#9b59b6',pop:67,  urb:84,mf:80,eco:38,bat:90, up:9, net:8, bal:{food:0,water:1,minerals:-1,mfgGoods:2,services:4,energy:0}},
+  'France':          {iso2:'fr', flag:'🇫🇷',isoNum:'250',continent:'Europe',         color:'#3498db',pop:68,  urb:82,mf:75,eco:36,bat:115,up:12,net:7, bal:{food:3,water:2,minerals:0,mfgGoods:2,services:2,energy:-1}},
+  'Germany':         {iso2:'de', flag:'🇩🇪',isoNum:'276',continent:'Europe',         color:'#7f8c8d',pop:84,  urb:78,mf:85,eco:44,bat:100,up:10,net:8, bal:{food:1,water:2,minerals:1,mfgGoods:5,services:2,energy:-2}},
+  'Italy':           {iso2:'it', flag:'🇮🇹',isoNum:'380',continent:'Europe',         color:'#1a9966',pop:60,  urb:72,mf:68,eco:30,bat:95, up:10,net:6, bal:{food:1,water:1,minerals:0,mfgGoods:2,services:2,energy:-2}},
+  'Spain':           {iso2:'es', flag:'🇪🇸',isoNum:'724',continent:'Europe',         color:'#c0392b',pop:47,  urb:81,mf:72,eco:22,bat:70, up:7, net:6, bal:{food:2,water:1,minerals:0,mfgGoods:0,services:2,energy:-2}},
+  'Ukraine':         {iso2:'ua', flag:'🇺🇦',isoNum:'804',continent:'Europe',         color:'#f1c40f',pop:44,  urb:70,mf:55,eco:10,bat:100,up:10,net:4, bal:{food:5,water:3,minerals:3,mfgGoods:-2,services:-2,energy:0}},
+  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:2,minerals:2,mfgGoods:1,services:1,energy:-1}},
+  'Netherlands':     {iso2:'nl', flag:'🇳🇱',isoNum:'528',continent:'Europe',         color:'#e67e22',pop:18,  urb:93,mf:92,eco:20,bat:28, up:3, net:9, bal:{food:1,water:1,minerals:-1,mfgGoods:3,services:4,energy:0}},
+  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:1,water:3,minerals:2,mfgGoods:3,services:3,energy:0}},
+  'Norway':          {iso2:'no', flag:'🇳🇴',isoNum:'578',continent:'Europe',         color:'#1f618d',pop:5,   urb:83,mf:97,eco:18,bat:16, up:2, net:9, bal:{food:1,water:3,minerals:2,mfgGoods:1,services:1,energy:5}},
+  'Turkey':          {iso2:'tr', flag:'🇹🇷',isoNum:'792',continent:'Europe',         color:'#f39c12',pop:85,  urb:77,mf:20,eco:18,bat:200,up:20,net:4, bal:{food:2,water:1,minerals:1,mfgGoods:1,services:0,energy:-1}},
+  'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:0,water:2,minerals:-1,mfgGoods:2,services:5,energy:0}},
+  'Greece':          {iso2:'gr', flag:'🇬🇷',isoNum:'300',continent:'Europe',         color:'#00bcd4',pop:10,  urb:80,mf:55,eco:10,bat:80, up:8, net:4, bal:{food:1,water:1,minerals:0,mfgGoods:-1,services:2,energy:-2}},
   // ── MIDDLE EAST ──
-  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:40,bat:180,up:18,net:9, bal:{food:-1,water:-2,minerals:5,mfgGoods:0,services:0,energy:5}},
-  'Iran':            {iso2:'ir', flag:'🇮🇷',isoNum:'364',continent:'Middle East',    color:'#388e3c',pop:87,  urb:77,mf:5, eco:20,bat:220,up:22,net:5, bal:{food:1,water:1,minerals:4,mfgGoods:0,services:-1,energy:4}},
-  'Israel':          {iso2:'il', flag:'🇮🇱',isoNum:'376',continent:'Middle East',    color:'#6fa8dc',pop:10,  urb:93,mf:50,eco:14,bat:100,up:10,net:7, bal:{food:1,water:1,minerals:1,mfgGoods:2,services:3,energy:0}},
-  'Egypt':           {iso2:'eg', flag:'🇪🇬',isoNum:'818',continent:'Middle East',    color:'#d4ac0d',pop:104, urb:43,mf:20,eco:14,bat:150,up:15,net:5, bal:{food:1,water:1,minerals:2,mfgGoods:0,services:1,energy:1}},
+  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:40,bat:180,up:18,net:9, bal:{food:-3,water:-3,minerals:4,mfgGoods:-3,services:-1,energy:7}},
+  'Iran':            {iso2:'ir', flag:'🇮🇷',isoNum:'364',continent:'Middle East',    color:'#388e3c',pop:87,  urb:77,mf:5, eco:20,bat:220,up:22,net:5, bal:{food:0,water:0,minerals:3,mfgGoods:-2,services:-2,energy:5}},
+  'Israel':          {iso2:'il', flag:'🇮🇱',isoNum:'376',continent:'Middle East',    color:'#6fa8dc',pop:10,  urb:93,mf:50,eco:14,bat:100,up:10,net:7, bal:{food:-1,water:-2,minerals:0,mfgGoods:1,services:4,energy:-1}},
+  'Egypt':           {iso2:'eg', flag:'🇪🇬',isoNum:'818',continent:'Middle East',    color:'#d4ac0d',pop:104, urb:43,mf:20,eco:14,bat:150,up:15,net:5, bal:{food:-1,water:0,minerals:1,mfgGoods:-2,services:0,energy:1}},
   // ── AFRICA ──
-  'Nigeria':         {iso2:'ng', flag:'🇳🇬',isoNum:'566',continent:'Africa',         color:'#558b2f',pop:220, urb:54,mf:40,eco:14,bat:100,up:10,net:5, bal:{food:1,water:2,minerals:3,mfgGoods:-1,services:-2,energy:3}},
-  'South Africa':    {iso2:'za', flag:'🇿🇦',isoNum:'710',continent:'Africa',         color:'#8e44ad',pop:60,  urb:68,mf:55,eco:16,bat:80, up:8, net:6, bal:{food:2,water:2,minerals:4,mfgGoods:1,services:0,energy:0}},
-  'Ethiopia':        {iso2:'et', flag:'🇪🇹',isoNum:'231',continent:'Africa',         color:'#00695c',pop:126, urb:23,mf:15,eco:6, bat:120,up:12,net:3, bal:{food:2,water:3,minerals:2,mfgGoods:-1,services:-2,energy:0}},
-  'Algeria':         {iso2:'dz', flag:'🇩🇿',isoNum:'012',continent:'Africa',         color:'#4e9a51',pop:46,  urb:75,mf:20,eco:12,bat:100,up:10,net:4, bal:{food:1,water:1,minerals:3,mfgGoods:0,services:0,energy:4}},
+  'Nigeria':         {iso2:'ng', flag:'🇳🇬',isoNum:'566',continent:'Africa',         color:'#558b2f',pop:220, urb:54,mf:40,eco:14,bat:100,up:10,net:5, bal:{food:0,water:1,minerals:2,mfgGoods:-2,services:-3,energy:4}},
+  'South Africa':    {iso2:'za', flag:'🇿🇦',isoNum:'710',continent:'Africa',         color:'#8e44ad',pop:60,  urb:68,mf:55,eco:16,bat:80, up:8, net:6, bal:{food:1,water:1,minerals:5,mfgGoods:0,services:-1,energy:0}},
+  'Ethiopia':        {iso2:'et', flag:'🇪🇹',isoNum:'231',continent:'Africa',         color:'#00695c',pop:126, urb:23,mf:15,eco:6, bat:120,up:12,net:3, bal:{food:2,water:2,minerals:1,mfgGoods:-3,services:-3,energy:0}},
+  'Algeria':         {iso2:'dz', flag:'🇩🇿',isoNum:'012',continent:'Africa',         color:'#4e9a51',pop:46,  urb:75,mf:20,eco:12,bat:100,up:10,net:4, bal:{food:-1,water:-1,minerals:2,mfgGoods:-2,services:-1,energy:5}},
   // ── ASIA ──
-  'China':           {iso2:'cn', flag:'🇨🇳',isoNum:'156',continent:'Asia',           color:'#e53935',pop:1400,urb:65,mf:5, eco:60,bat:600,up:60,net:8, bal:{food:2,water:1,minerals:4,mfgGoods:5,services:1,energy:0}},
-  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:7, bal:{food:3,water:2,minerals:3,mfgGoods:1,services:2,energy:0}},
-  'Japan':           {iso2:'jp', flag:'🇯🇵',isoNum:'392',continent:'Asia',           color:'#e84393',pop:124, urb:92,mf:75,eco:42,bat:140,up:14,net:7, bal:{food:0,water:2,minerals:0,mfgGoods:4,services:4,energy:0}},
-  'South Korea':     {iso2:'kr', flag:'🇰🇷',isoNum:'410',continent:'Asia',           color:'#1abc9c',pop:52,  urb:81,mf:70,eco:26,bat:230,up:23,net:8, bal:{food:0,water:2,minerals:0,mfgGoods:4,services:3,energy:0}},
-  'Indonesia':       {iso2:'id', flag:'🇮🇩',isoNum:'360',continent:'Asia',           color:'#d35400',pop:274, urb:58,mf:50,eco:20,bat:160,up:16,net:6, bal:{food:3,water:4,minerals:4,mfgGoods:1,services:-1,energy:2}},
-  'Pakistan':        {iso2:'pk', flag:'🇵🇰',isoNum:'586',continent:'Asia',           color:'#1b5e20',pop:231, urb:37,mf:25,eco:12,bat:200,up:20,net:4, bal:{food:2,water:2,minerals:2,mfgGoods:0,services:-1,energy:0}},
-  'Vietnam':         {iso2:'vn', flag:'🇻🇳',isoNum:'704',continent:'Asia',           color:'#b71c1c',pop:98,  urb:38,mf:15,eco:10,bat:120,up:12,net:5, bal:{food:3,water:3,minerals:2,mfgGoods:2,services:0,energy:1}},
-  'Thailand':        {iso2:'th', flag:'🇹🇭',isoNum:'764',continent:'Asia',           color:'#6a1b9a',pop:71,  urb:53,mf:30,eco:12,bat:100,up:10,net:5, bal:{food:3,water:3,minerals:2,mfgGoods:2,services:1,energy:0}},
-  'Bangladesh':      {iso2:'bd', flag:'🇧🇩',isoNum:'050',continent:'Asia',           color:'#006064',pop:170, urb:40,mf:25,eco:8, bat:100,up:10,net:4, bal:{food:2,water:3,minerals:1,mfgGoods:2,services:-1,energy:0}},
-  'North Korea':     {iso2:'kp', flag:'🇰🇵',isoNum:'408',continent:'Asia',           color:'#37474f',pop:26,  urb:63,mf:0, eco:6, bat:280,up:28,net:2, bal:{food:-1,water:2,minerals:3,mfgGoods:0,services:-2,energy:0}},
+  'China':           {iso2:'cn', flag:'🇨🇳',isoNum:'156',continent:'Asia',           color:'#e53935',pop:1400,urb:65,mf:5, eco:60,bat:600,up:60,net:8, bal:{food:1,water:0,minerals:3,mfgGoods:5,services:0,energy:-1}},
+  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:7, bal:{food:2,water:1,minerals:2,mfgGoods:1,services:2,energy:-2}},
+  'Japan':           {iso2:'jp', flag:'🇯🇵',isoNum:'392',continent:'Asia',           color:'#e84393',pop:124, urb:92,mf:75,eco:42,bat:140,up:14,net:7, bal:{food:-2,water:1,minerals:-2,mfgGoods:5,services:3,energy:-3}},
+  'South Korea':     {iso2:'kr', flag:'🇰🇷',isoNum:'410',continent:'Asia',           color:'#1abc9c',pop:52,  urb:81,mf:70,eco:26,bat:230,up:23,net:8, bal:{food:-2,water:1,minerals:-2,mfgGoods:5,services:2,energy:-3}},
+  'Indonesia':       {iso2:'id', flag:'🇮🇩',isoNum:'360',continent:'Asia',           color:'#d35400',pop:274, urb:58,mf:50,eco:20,bat:160,up:16,net:6, bal:{food:2,water:3,minerals:4,mfgGoods:0,services:-2,energy:2}},
+  'Pakistan':        {iso2:'pk', flag:'🇵🇰',isoNum:'586',continent:'Asia',           color:'#1b5e20',pop:231, urb:37,mf:25,eco:12,bat:200,up:20,net:4, bal:{food:1,water:1,minerals:1,mfgGoods:-2,services:-2,energy:0}},
+  'Vietnam':         {iso2:'vn', flag:'🇻🇳',isoNum:'704',continent:'Asia',           color:'#b71c1c',pop:98,  urb:38,mf:15,eco:10,bat:120,up:12,net:5, bal:{food:3,water:3,minerals:2,mfgGoods:2,services:-1,energy:0}},
+  'Thailand':        {iso2:'th', flag:'🇹🇭',isoNum:'764',continent:'Asia',           color:'#6a1b9a',pop:71,  urb:53,mf:30,eco:12,bat:100,up:10,net:5, bal:{food:3,water:3,minerals:1,mfgGoods:1,services:0,energy:-1}},
+  'Bangladesh':      {iso2:'bd', flag:'🇧🇩',isoNum:'050',continent:'Asia',           color:'#006064',pop:170, urb:40,mf:25,eco:8, bat:100,up:10,net:4, bal:{food:1,water:2,minerals:0,mfgGoods:1,services:-2,energy:-1}},
+  'North Korea':     {iso2:'kp', flag:'🇰🇵',isoNum:'408',continent:'Asia',           color:'#37474f',pop:26,  urb:63,mf:0, eco:6, bat:280,up:28,net:2, bal:{food:-2,water:1,minerals:3,mfgGoods:-1,services:-3,energy:0}},
   // ── OCEANIA ──
-  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:3,minerals:5,mfgGoods:-1,services:1,energy:2}},
-  'New Zealand':     {iso2:'nz', flag:'🇳🇿',isoNum:'554',continent:'Oceania',        color:'#7d3c98',pop:5,   urb:87,mf:85,eco:10,bat:8,  up:1, net:7, bal:{food:4,water:4,minerals:2,mfgGoods:0,services:2,energy:1}},
+  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:2,minerals:5,mfgGoods:-1,services:1,energy:2}},
+  'New Zealand':     {iso2:'nz', flag:'🇳🇿',isoNum:'554',continent:'Oceania',        color:'#7d3c98',pop:5,   urb:87,mf:85,eco:10,bat:8,  up:1, net:7, bal:{food:4,water:4,minerals:2,mfgGoods:-1,services:1,energy:0}},
 };
 
 const GOVERNMENT_TYPES = ['Democracy','Republic','Federal Republic','Constitutional Monarchy','Monarchy','Dictatorship','Military Junta','Communism','Oligarchy','Technocracy','Theocracy','Presidential Republic'];
@@ -2148,6 +2153,8 @@ function processTurn(){
   GS.turnLog.unshift(entry);
   GS.turn++; GS.phase='collecting';
   generateTurnEvents(GS.turn);
+  const _chron=generateTurnChronicle(GS.turn-1);
+  if(_chron){ if(!GS.newsBoard)GS.newsBoard=[]; GS.newsBoard.unshift(_chron); }
   pushState(); toast('Turn '+GS.turn+' processed!','success');
 }
 
@@ -2169,7 +2176,7 @@ function addNote(){
 }
 
 // ── Events & Gossip ──
-const CAT_LABELS = {market:'Market',military:'Military',politics:'Politics',economy:'Economy',diplomacy:'Diplomacy',disaster:'Disaster'};
+const CAT_LABELS = {market:'Market',military:'Military',politics:'Politics',economy:'Economy',diplomacy:'Diplomacy',disaster:'Disaster',chronicle:'Chronicle'};
 
 // ── Auto-event generation pools ──
 const _NPC  = ['China','India','Germany','France','United Kingdom','Japan','South Korea','Saudi Arabia','Iran','Turkey','Mexico','Indonesia','Pakistan','Nigeria','Egypt','South Africa','Argentina','North Korea','Israel','Ukraine','Ethiopia','Vietnam','Thailand','Bangladesh','Philippines','Iraq','Venezuela','Colombia','Kenya','Algeria'];
@@ -2281,11 +2288,58 @@ function generateTurnEvents(turn){
   });
 }
 
+function generateTurnChronicle(turn){
+  const countries = Object.entries(GS.countries||{});
+  if(!countries.length) return null;
+  const parts=[];
+  const logEntry=(GS.turnLog||[])[0];
+
+  // Wars that just ended
+  const endedWars=(GS.wars||[]).filter(w=>w.status==='ended'&&w.endTurn===turn);
+  endedWars.forEach(w=>{
+    parts.push(`The conflict between ${w.attacker} and ${w.defender} has ended — ${w.result?w.result+' emerges victorious':'with a ceasefire'}.`);
+  });
+
+  // Active wars
+  const activeWars=(GS.wars||[]).filter(w=>w.status==='active');
+  if(activeWars.length){
+    const pairs=activeWars.map(w=>`${w.attacker} vs ${w.defender}`);
+    parts.push(`Fighting continues: ${pairs.join('; ')}.`);
+  }
+
+  // Notable diplomatic actions
+  if(logEntry){
+    const allies=Object.entries(logEntry.actions).filter(([,a])=>a.actionId==='alliance'&&a.note).map(([id])=>id);
+    if(allies.length) parts.push(`${allies.slice(0,2).join(' and ')} ${allies.length===1?'is':'are'} forging new alliances.`);
+    const militarists=Object.entries(logEntry.actions).filter(([,a])=>['mech_div','carrier','nuclear','bomber_wing'].includes(a.actionId)).map(([id])=>id);
+    if(militarists.length) parts.push(`${militarists.slice(0,2).join(' and ')} ${militarists.length===1?'is':'are'} making bold military investments.`);
+    const megaBuilders=Object.entries(logEntry.actions).filter(([,a])=>['mega_proj','major_proj'].includes(a.actionId)&&a.note).map(([id,a])=>`${id}`);
+    if(megaBuilders.length) parts.push(`${megaBuilders.slice(0,2).join(' and ')} ${megaBuilders.length===1?'is':'are'} pushing forward major development projects.`);
+  }
+
+  // Economic leader
+  const byPool=[...countries].sort((a,b)=>b[1].economy.pool-a[1].economy.pool);
+  if(byPool.length) parts.push(`${byPool[0][0]} leads the global economy with a treasury of ${byPool[0][1].economy.pool}.`);
+
+  // Prestige leader
+  const byPres=[...countries].sort((a,b)=>b[1].prestige-a[1].prestige);
+  if(byPres.length&&byPres[0][1].prestige>5) parts.push(`${byPres[0][0]} holds the highest prestige on the world stage.`);
+
+  // Stability crises
+  const unstable=countries.filter(([,c])=>c.stability<45).map(([id])=>id);
+  if(unstable.length) parts.push(`Political unrest is deepening in ${unstable.slice(0,3).join(', ')}.`);
+
+  if(!parts.length) parts.push('The world remains in a tense period of relative stability.');
+
+  return {id:'chronicle_'+turn,turn,type:'chronicle',category:'chronicle',title:`📜 Turn ${turn} World Report`,body:parts.join(' ')};
+}
+
 function renderEventsTab(){
   const el = document.getElementById('view-events');
   if(!GS){ el.innerHTML='<p class="text-dim" style="padding:20px">Loading…</p>'; return; }
 
   const nb = (GS.newsBoard||[]).slice().reverse();
+  const chronicles= nb.filter(n=>n.type==='chronicle').sort((a,b)=>b.turn-a.turn);
   const events  = nb.filter(n=>n.type==='event');
   const gossips = nb.filter(n=>n.type==='gossip');
 
@@ -2331,9 +2385,23 @@ function renderEventsTab(){
       : `<div style="font-size:11px;color:var(--text-dim);padding:6px 0 12px">You've used your 2 gossip posts this turn.</div>`;
   })() : '';
 
+  const chronicleCardHtml = n => `
+    <div class="news-card" style="border-left:3px solid var(--accent);background:rgba(100,180,255,0.06);margin-bottom:10px">
+      <div class="news-title" style="color:var(--accent)">${n.title}</div>
+      <div class="news-body" style="line-height:1.6">${n.body}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">
+        <span class="news-turn">Turn ${n.turn} — ${getTurnDate(n.turn)}</span>
+        ${session.country==='gm' ? `<button class="btn" style="font-size:10px;padding:2px 8px;opacity:.6" onclick="deleteNewsItem('${n.id}')">✕ Delete</button>` : ''}
+      </div>
+    </div>`;
+
   el.innerHTML = `
     <div style="padding:16px;max-width:1200px;width:100%;margin:0 auto">
       ${gmNotice}${specGossipForm}
+      ${chronicles.length ? `<div style="margin-bottom:18px">
+        <div class="events-col-header">📜 Turn Chronicle <span style="font-weight:400;opacity:.5">(world report)</span></div>
+        ${chronicles.slice(0,5).map(n=>chronicleCardHtml(n)).join('')}
+      </div>` : ''}
       ${blackSwans.length ? `<div style="margin-bottom:14px">
         <div class="events-col-header" style="color:#e040fb">🦢 Black Swan Events</div>
         ${blackSwans.map(n=>cardHtml(n,false)).join('')}
