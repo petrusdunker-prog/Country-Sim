@@ -1409,6 +1409,8 @@ function importState(){
 }
 
 function normalizeState(s){
+  if(s.turn  === undefined || s.turn  === null) s.turn  = 0;
+  if(!s.phase) s.phase = 'setup';
   s.turnLog    = s.turnLog    || [];
   s.wars       = s.wars       || [];
   s.events     = s.events     || [];
@@ -2033,7 +2035,7 @@ function renderGmConsole(){
     <div class="gm-header">
       <div><h2>👑 GM Console</h2><div style="font-size:11px;margin-top:2px;color:var(--text-dim)">Turn ${GS.turn} — ${getTurnDate(GS.turn)}</div></div>
       <span class="phase-badge phase-${GS.phase}">Phase: ${GS.phase.toUpperCase()}</span>
-      <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${sub}/5 submitted</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${sub}/${Object.keys(GS.countries).length} submitted</span>
     </div>
     <div class="gm-controls">
       <button class="btn gm-only" onclick="advanceTurn()">▶ Start Turn ${GS.turn+1}</button>
@@ -2063,15 +2065,16 @@ function renderGmConsole(){
             </button>
           </div>
           ${(() => {
-            const a = c.actions;
-            if(a.actionId){
+            const slots = (Array.isArray(c.actions) ? c.actions : [c.actions]).filter(a=>a&&a.actionId);
+            if(!slots.length) return `<div class="action-entry"><div class="ae-label">Actions</div><div class="ae-value"><span class="ae-empty">No actions submitted</span></div></div>`;
+            return slots.map((a,i)=>{
               const cat = ACTION_COSTS[a.category||'']||[];
               const act = cat.find(x=>x.id===a.actionId);
-              return `<div class="action-entry"><div class="ae-label">${act?act.type:'Action'}</div><div class="ae-value">${act?act.name:'Unknown'}</div></div>
-                      ${a.warTarget?`<div class="action-entry"><div class="ae-label">Target</div><div class="ae-value">${a.warTarget}</div></div>`:''}
-                      ${a.note?`<div class="action-entry"><div class="ae-label">Notes</div><div class="ae-value" style="font-style:italic">${a.note}</div></div>`:''}`;
-            }
-            return `<div class="action-entry"><div class="ae-label">Action</div><div class="ae-value"><span class="ae-empty">No structured action</span></div></div>`;
+              return `<div class="action-entry" style="border-top:${i?'1px solid var(--border)':'none'};padding-top:${i?'4px':'0'}">
+                <div class="ae-label">Action ${i+1}</div><div class="ae-value">${act?act.name:a.actionId}</div></div>
+                ${a.warTarget?`<div class="action-entry"><div class="ae-label">Target</div><div class="ae-value">${a.warTarget}</div></div>`:''}
+                ${a.note?`<div class="action-entry"><div class="ae-label">Notes</div><div class="ae-value" style="font-style:italic">${a.note}</div></div>`:''}`;
+            }).join('');
           })()}
         </div>`;
       }).join('')}
