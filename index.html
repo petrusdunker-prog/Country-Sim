@@ -645,14 +645,14 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
     </div>
     <div id="right-panel">
       <div id="panel-tab-bar">
-        <button class="ptab active" onclick="switchPanelTab('actions')">⚡<br>Actions</button>
-        <button class="ptab" onclick="switchPanelTab('economy')">💰<br>Economy</button>
+        <button class="ptab" onclick="switchPanelTab('actions')">⚡<br>Actions</button>
+        <button class="ptab active" onclick="switchPanelTab('economy')">💰<br>Economy</button>
         <button class="ptab" onclick="switchPanelTab('military')">⚔️<br>Military</button>
         <button class="ptab" onclick="switchPanelTab('diplo')">🤝<br>Diplo</button>
       </div>
       <div id="panel-content">
-        <div id="action-panel" class="panel-section active"></div>
-        <div id="cc-economy" class="panel-section"></div>
+        <div id="action-panel" class="panel-section"></div>
+        <div id="cc-economy" class="panel-section active"></div>
         <div id="cc-military" class="panel-section"></div>
         <div id="cc-diplo" class="panel-section"></div>
       </div>
@@ -1551,7 +1551,7 @@ function countryClick(event,d){
   const iso=String(d.id);
   let pid=null;
   for(const [id,m] of Object.entries(PLAYER_META)) if(norm(m.isoNum)===norm(iso)){pid=id;break;}
-  if(pid){ renderCountryCard(pid); switchPanelTab('actions'); return; }
+  if(pid){ renderCountryCard(pid); switchPanelTab('economy'); return; }
   const playable=findPlayableByISO(iso);
   if(playable){ renderPlayableNpcCard(playable.name,playable.pc); return; }
   if(NPC_META[iso]||NPC_META[norm(iso)]){ renderNpcCard(iso); return; }
@@ -1941,7 +1941,7 @@ function renderBottomBar(){
 
 function countryPillClick(id){
   renderCountryCard(id);
-  switchPanelTab('actions');
+  switchPanelTab('economy');
   activateTab('world');
 }
 
