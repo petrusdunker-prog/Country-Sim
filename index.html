@@ -2774,6 +2774,11 @@ function tryLogin(){
   const name = document.getElementById('loginName').value.trim();
   const pw   = document.getElementById('loginPw').value;
   if(!name){ document.getElementById('loginError').textContent = 'Please enter your name.'; return; }
+  if(name.length < 2){ document.getElementById('loginError').textContent = 'Name must be at least 2 characters.'; return; }
+  if(name.length > 20){ document.getElementById('loginError').textContent = 'Name must be 20 characters or fewer.'; return; }
+  if(!/^[a-zA-Z0-9 '_\-]+$/.test(name)){ document.getElementById('loginError').textContent = 'Name can only contain letters, numbers, spaces, apostrophes, underscores, or hyphens.'; return; }
+  const _badWords = ['nigger','nigga','faggot','chink','spic','kike','cunt','retard','tranny'];
+  if(_badWords.some(w => name.toLowerCase().includes(w))){ document.getElementById('loginError').textContent = 'That name is not allowed.'; return; }
 
   // Spectator mode — bypass country picker, go straight to game as observer
   if(_spectatorMode && _roomCode){
