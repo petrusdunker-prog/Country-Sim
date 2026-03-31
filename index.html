@@ -3369,7 +3369,7 @@ function appendChatMsg(msg){
   el.scrollTop=el.scrollHeight;
   // Badge: increment if chat tab isn't currently active
   const chatTabActive = document.getElementById('view-chat')?.classList.contains('active');
-  if(!chatTabActive && !msg.isMe){ _unreadChat++; _updateChatBadge(); }
+  if(!chatTabActive && !isMe){ _unreadChat++; _updateChatBadge(); }
 }
 
 function sendChat(){
