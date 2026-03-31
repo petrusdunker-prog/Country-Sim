@@ -576,6 +576,12 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
       <label>Government</label>
       <select id="pickerGov"></select>
     </div>
+    <div id="pickerPwWrap" style="display:none;flex-direction:column;gap:4px;margin-top:6px">
+      <label style="font-size:12px;color:var(--text-dim)">Set a password <span style="color:var(--accent)">(required — keeps others from logging in as you)</span></label>
+      <input id="pickerPw" type="password" placeholder="Min 4 characters…" maxlength="40"
+             style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:7px 10px;font-size:13px">
+      <div id="pickerPwErr" style="font-size:11px;color:var(--red);min-height:14px"></div>
+    </div>
     <button id="pickerJoinBtn" disabled onclick="claimCountry()">Join Game</button>
   </div>
 </div>
@@ -2719,6 +2725,9 @@ function pickCountry(id, isTaken){
     '<span class="picker-sel-flag">' + pc.flag + '</span>' +
     '<div><div class="picker-sel-name">' + id + '</div><div class="picker-sel-sub">' + pc.continent + ' · Pop: ' + pc.pop + 'M · Eco: ' + pc.eco + '</div></div>';
   document.getElementById('pickerGovWrap').style.display = 'flex';
+  document.getElementById('pickerPwWrap').style.display = 'flex';
+  document.getElementById('pickerPw').value = '';
+  document.getElementById('pickerPwErr').textContent = '';
   document.getElementById('pickerJoinBtn').disabled = false;
 }
 
@@ -2735,7 +2744,14 @@ function claimCountry(){
   const gov = document.getElementById('pickerGov').value;
   // Solo mode — skip Firebase entirely
   if(_soloMode){ initSoloGame(_pickerSelected, gov); return; }
-  const slot = { player: _pickerName, government: gov };
+  // Password validation
+  const pw = (document.getElementById('pickerPw')?.value || '').trim();
+  if(pw.length < 4){
+    const err = document.getElementById('pickerPwErr');
+    if(err) err.textContent = 'Password must be at least 4 characters.';
+    return;
+  }
+  const slot = { player: _pickerName, government: gov, password: pw };
   const newCountryState = makeCountryState(_pickerSelected);
   if(newCountryState) newCountryState.playerName = _pickerName;
 
@@ -2772,11 +2788,18 @@ function claimCountry(){
 //  LOGIN
 // ══════════════════════════════════════════════════════════════
 document.getElementById('loginName').addEventListener('input', e => {
-  // Show password field when typing GM
-  document.getElementById('pwField').classList.toggle('hidden', e.target.value.trim().toLowerCase() !== 'gm');
   const v = e.target.value.trim().toLowerCase();
-  // Show GM password field only in main game (not in AI GM rooms)
-  document.getElementById('pwField').classList.toggle('hidden', v !== 'gm' || !!_roomCode);
+  const isGmName = v === 'gm' && !_roomCode;
+  // Hide password field and reset error when name changes — it re-appears on submit if needed
+  if(!isGmName){
+    document.getElementById('pwField').classList.add('hidden');
+    document.getElementById('loginPw').value = '';
+    const labelEl = document.querySelector('#pwField label');
+    if(labelEl) labelEl.textContent = 'GM Password';
+  } else {
+    document.getElementById('pwField').classList.remove('hidden');
+  }
+  document.getElementById('loginError').textContent = '';
 });
 document.getElementById('loginName').addEventListener('keydown', e => { if(e.key==='Enter') tryLogin(); });
 document.getElementById('loginPw').addEventListener('keydown', e => { if(e.key==='Enter') tryLogin(); });
@@ -2822,6 +2845,24 @@ function tryLogin(){
       // 1. Check new slot system
       for(const [country, slot] of Object.entries(slots)){
         if(slot && slot.player && slot.player.trim().toLowerCase() === nameLow){
+          // Password check
+          if(slot.password){
+            const pwEl = document.getElementById('loginPw');
+            const labelEl = document.querySelector('#pwField label');
+            document.getElementById('pwField').classList.remove('hidden');
+            if(labelEl) labelEl.textContent = 'Password';
+            if(document.getElementById('loginPw').placeholder !== 'Your password…')
+              document.getElementById('loginPw').placeholder = 'Your password…';
+            if(!pw){
+              document.getElementById('loginError').textContent = 'Enter your password.';
+              return;
+            }
+            if(pw !== slot.password){
+              document.getElementById('loginError').textContent = 'Wrong password.';
+              document.getElementById('loginPw').value = '';
+              return;
+            }
+          }
           setSession({ name: slot.player, country, roomCode: _roomCode || null });
           document.getElementById('loginOverlay').classList.add('hidden');
           bootApp();
