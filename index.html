@@ -2847,12 +2847,10 @@ function tryLogin(){
         if(slot && slot.player && slot.player.trim().toLowerCase() === nameLow){
           // Password check
           if(slot.password){
-            const pwEl = document.getElementById('loginPw');
             const labelEl = document.querySelector('#pwField label');
-            document.getElementById('pwField').classList.remove('hidden');
             if(labelEl) labelEl.textContent = 'Password';
-            if(document.getElementById('loginPw').placeholder !== 'Your password…')
-              document.getElementById('loginPw').placeholder = 'Your password…';
+            document.getElementById('loginPw').placeholder = 'Your password…';
+            document.getElementById('pwField').classList.remove('hidden');
             if(!pw){
               document.getElementById('loginError').textContent = 'Enter your password.';
               return;
