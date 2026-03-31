@@ -1799,6 +1799,8 @@ function renderActionPanel(id){
       <div id="act-note-warn" style="font-size:10px;color:var(--orange);min-height:14px"></div>
     </div>
     <button class="btn primary submit-turn-btn" onclick="submitActions('${id}')">✓ Submit Turn</button>
+    ${c.economy.pool < 5 ? `<div style="margin-top:6px;padding:6px 8px;background:#1a0a00;border:1px solid var(--orange);border-radius:var(--radius);font-size:10px;color:var(--orange)">⚠ Economy pool is low (${c.economy.pool}). You may not be able to afford actions.</div>
+    <button class="btn" style="width:100%;margin-top:4px;border-color:var(--orange);color:var(--orange)" onclick="skipTurn('${id}')">⏭ Skip Turn (submit no actions)</button>` : ''}
   </div>`;
 
   const noteEl = document.getElementById('act-note-'+_actSlot);
@@ -1880,6 +1882,18 @@ function submitActions(id){
   renderActionPanel(id);
   renderBottomBar();
   toast('Actions submitted!','success');
+}
+
+function skipTurn(id){
+  if(session.country !== id){ toast('You can only skip your own turn','error'); return; }
+  const c = GS.countries[id];
+  if(!c || c.submitted){ toast('Already submitted','error'); return; }
+  c.actions = [{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''}];
+  c.submitted = true;
+  pushCountryActions(id);
+  renderActionPanel(id);
+  renderBottomBar();
+  toast('Turn skipped.','info');
 }
 
 // ── Bottom Bar ──
