@@ -2244,7 +2244,6 @@ function processTurn(){
     // ── Resource deficit impacts ──
     const foodBal  = c.resourceBalance?.food  || 0;
     const waterBal = c.resourceBalance?.water || 0;
-    const mfgBal   = c.resourceBalance?.mfgGoods || 0;
     if(foodBal <= -3){
       c.stability = Math.max(0, (c.stability||60) - 3);
       if(!GS.newsBoard) GS.newsBoard=[];
@@ -2258,9 +2257,6 @@ function processTurn(){
       GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💧 ${id}: Water Shortage`,body:`Water scarcity is straining infrastructure and public health. Stability -2.`});
     } else if(waterBal < 0){
       c.stability = Math.max(0, (c.stability||60) - 1);
-    }
-    if(mfgBal <= -3){
-      c.economy.netIncome = Math.max(-20, (c.economy.netIncome||0) - 1);
     }
     c.tech.points += c.tech.researchIncome;
     if(c.tech.researching&&c.tech.turnsLeft>0){
