@@ -180,6 +180,37 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .mkt-res-chip .rc-val{font-size:18px;font-weight:700;margin:2px 0}
 .mkt-res-chip .rc-bal{font-size:10px;color:var(--text-dim)}
 
+/* ── RELATIONS TAB ── */
+#view-relations{overflow-y:auto;flex-direction:column;padding:16px;gap:14px}
+.rel-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.rel-section h3{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.rel-player-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.rel-player-row:last-child{border:none}
+.rel-flag{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.rel-name{flex:1;font-weight:600}
+.rel-stance-btns{display:flex;gap:4px}
+.rel-stance-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim);padding:3px 9px;border-radius:20px;cursor:pointer;font-size:10px;font-weight:700;transition:all .15s}
+.rel-stance-btn.active-ally{background:#1c3a1c;border-color:var(--green);color:var(--green)}
+.rel-stance-btn.active-rival{background:#3a1c1c;border-color:var(--red);color:var(--red)}
+.rel-npc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.rel-npc-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px}
+.rel-npc-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.rel-npc-name{font-size:11px;font-weight:700;flex:1}
+.rel-bar-wrap{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.rel-bar-bg{flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden}
+.rel-bar-fill{height:100%;border-radius:3px}
+.rel-score{font-size:10px;font-weight:700;width:30px;text-align:right}
+
+/* ── TURN RESULTS BANNER ── */
+.turn-results-banner{background:var(--surface);border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px}
+.turn-results-banner h4{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+.trb-grid{display:flex;flex-wrap:wrap;gap:6px}
+.trb-stat{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-size:11px;display:flex;flex-direction:column;align-items:center;min-width:70px}
+.trb-stat .trb-val{font-size:15px;font-weight:700;margin:2px 0}
+.trb-stat .trb-lbl{font-size:9px;color:var(--text-dim);text-transform:uppercase}
+.trb-proj{margin-top:7px;font-size:10px}
+.trb-proj-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:var(--green)}
+
 /* ── LANDING OVERLAY ── */
 #landingOverlay{position:fixed;inset:0;background:var(--bg);z-index:1100;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px 0 env(safe-area-inset-bottom,16px)}
 #landingOverlay.hidden{display:none}
@@ -609,6 +640,7 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
     <button class="tab-btn" data-tab="intel" id="tabIntel">🕵️ Intel</button>
     <button class="tab-btn" data-tab="press">📢 Press</button>
     <button class="tab-btn" data-tab="market">🏪 Market</button>
+    <button class="tab-btn" data-tab="relations">🌐 Relations</button>
   </nav>
   <div class="spacer"></div>
   <!-- GM only: view any country -->
@@ -654,7 +686,7 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
         <button class="ptab" onclick="switchPanelTab('actions')">⚡<br>Actions</button>
         <button class="ptab active" onclick="switchPanelTab('economy')">💰<br>Economy</button>
         <button class="ptab" onclick="switchPanelTab('military')">⚔️<br>Military</button>
-        <button class="ptab" onclick="switchPanelTab('diplo')">🤝<br>Diplo</button>
+        <button class="ptab" id="diploTab" onclick="switchPanelTab('diplo')">🤝<br>Diplo<span id="diploBadge" style="display:none;background:var(--red);color:#fff;border-radius:20px;font-size:8px;padding:1px 4px;margin-left:3px;font-weight:700;vertical-align:middle"></span></button>
       </div>
       <div id="panel-content">
         <div id="action-panel" class="panel-section"></div>
@@ -709,6 +741,11 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
   <!-- MARKET / TRADE -->
   <div class="tab-view" id="view-market">
     <div id="marketContent" style="width:100%;height:100%;overflow-y:auto;padding:16px">Loading…</div>
+  </div>
+
+  <!-- RELATIONS -->
+  <div class="tab-view" id="view-relations">
+    <div id="relationsContent" style="width:100%;height:100%;overflow-y:auto;padding:16px">Loading…</div>
   </div>
 
 </main>
@@ -813,12 +850,12 @@ const ACTION_COSTS = {
     { id:'nuclear',     name:'Nuclear Weapon',          eco:30, mat:8, min:15, egy:10, type:'Mega',  scope:'International', effects:{nukes:1},            desc:'Nuclear deterrent. Triggers global reaction and sanctions risk.' },
   ],
   projects: [
-    { id:'minor_proj',  name:'Minor Project',           eco:5,  mat:3, min:0,  egy:1,  turns:1, type:'Minor', scope:'Local',         effects:{stability:3},       desc:'Local development project. Must specify area/type in notes.' },
-    { id:'major_proj',  name:'Major Project',           eco:15, mat:8, min:2,  egy:3,  turns:2, type:'Major', scope:'State-wide',    effects:{stability:5,prestige:2}, desc:'State-scale project. Must state clear state-level impact in notes.' },
-    { id:'mega_proj',   name:'Mega Project',            eco:25, mat:15,min:5,  egy:6,  turns:3, type:'Mega',  scope:'National/Intl', effects:{stability:8,prestige:5}, desc:'Nationally significant project. Must state international rationale.' },
-    { id:'infra',       name:'Infrastructure',          eco:8,  mat:10,min:0,  egy:2,  turns:2, type:'Major', scope:'National',      effects:{net:1},              desc:'Permanent infrastructure — boosts net income +1/turn.' },
-    { id:'eco_reform',  name:'Economic Reform',         eco:5,  mat:0, min:0,  egy:0,  turns:1, type:'Minor', scope:'National',      effects:{pool:5},             desc:'Policy reform adds 5 to economy pool immediately.' },
-    { id:'urban_drive', name:'Urbanisation Drive',      eco:10, mat:6, min:1,  egy:2,  turns:2, type:'Major', scope:'National',      effects:{stability:4,pool:3}, desc:'Urban development boosts stability and short-term productivity.' },
+    { id:'minor_proj',  name:'Minor Project',           eco:5,  mat:3, min:0,  egy:1,  turns:1, type:'Minor', scope:'Local',         effects:{stability:3,pool:2},           desc:'Local development project. Must specify area/type in notes. Grants +3 stability and +2 eco pool.' },
+    { id:'major_proj',  name:'Major Project',           eco:15, mat:8, min:2,  egy:3,  turns:2, type:'Major', scope:'State-wide',    effects:{stability:5,prestige:2,net:1},  desc:'State-scale project. Must state clear state-level impact in notes. Permanently boosts net income +1/turn.' },
+    { id:'mega_proj',   name:'Mega Project',            eco:25, mat:15,min:5,  egy:6,  turns:3, type:'Mega',  scope:'National/Intl', effects:{stability:8,prestige:5,net:2},  desc:'Nationally significant project. Must state international rationale. Permanently boosts net income +2/turn.' },
+    { id:'infra',       name:'Infrastructure',          eco:8,  mat:10,min:0,  egy:2,  turns:2, type:'Major', scope:'National',      effects:{net:1,trade:1},                 desc:'Permanent infrastructure — boosts net income +1/turn and trade income +1/turn.' },
+    { id:'eco_reform',  name:'Economic Reform',         eco:5,  mat:0, min:0,  egy:0,  turns:1, type:'Minor', scope:'National',      effects:{pool:8},                         desc:'Policy reform — adds 8 to economy pool immediately. Use repeatedly for short-term cash flow.' },
+    { id:'urban_drive', name:'Urbanisation Drive',      eco:10, mat:6, min:1,  egy:2,  turns:2, type:'Major', scope:'National',      effects:{stability:4,pool:3,trade:1},    desc:'Urban development boosts stability, +3 eco pool, and +1/turn trade income permanently.' },
   ],
   diplomacy: [
     { id:'alliance',    name:'Alliance / Pact',         eco:5,  mat:0, min:0,  egy:0,  type:'Minor', scope:'International', effects:{dipPts:5,prestige:2}, desc:'Formal alliance or pact. Specify partner country in notes.' },
@@ -926,55 +963,69 @@ const PROXY_SUPPORT_TYPES = [
 // bal=resource balance  pop=population(M)  urb=urbanisation%  mf=media freedom(0-100)
 const PLAYABLE_COUNTRIES = {
   // ── NORTH AMERICA ──
-  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:2,water:2,minerals:1,mfgGoods:2,services:2,energy:-3}},
-  'Canada':          {iso2:'ca', flag:'🇨🇦',isoNum:'124',continent:'North America',  color:'#c04040',pop:38,  urb:82,mf:82,eco:28,bat:45, up:5, net:7, bal:{food:4,water:4,minerals:4,mfgGoods:-2,services:-2,energy:3}},
-  'Mexico':          {iso2:'mx', flag:'🇲🇽',isoNum:'484',continent:'North America',  color:'#27ae60',pop:127, urb:81,mf:30,eco:18,bat:150,up:15,net:5, bal:{food:1,water:1,minerals:2,mfgGoods:-1,services:-1,energy:1}},
+  // USA: massive industry/services but energy-hungry, water-stressed in west, food surplus midwest
+  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:2,water:-1,minerals:-1,mfgGoods:2,services:3,energy:-4}},
+  // Canada: huge resources/food/energy, but tiny pop = low services/manufacturing
+  'Canada':          {iso2:'ca', flag:'🇨🇦',isoNum:'124',continent:'North America',  color:'#c04040',pop:38,  urb:82,mf:82,eco:28,bat:45, up:5, net:7, bal:{food:3,water:4,minerals:4,mfgGoods:-3,services:-2,energy:3}},
+  // Mexico: mixed, weak on services, modest energy
+  'Mexico':          {iso2:'mx', flag:'🇲🇽',isoNum:'484',continent:'North America',  color:'#27ae60',pop:127, urb:81,mf:30,eco:18,bat:150,up:15,net:5, bal:{food:1,water:0,minerals:2,mfgGoods:-1,services:-2,energy:1}},
   // ── SOUTH AMERICA ──
-  'Brazil':          {iso2:'br', flag:'🇧🇷',isoNum:'076',continent:'South America',  color:'#2dc653',pop:215, urb:88,mf:55,eco:34,bat:300,up:30,net:6, bal:{food:5,water:5,minerals:4,mfgGoods:-2,services:-2,energy:1}},
-  'Argentina':       {iso2:'ar', flag:'🇦🇷',isoNum:'032',continent:'South America',  color:'#2980b9',pop:46,  urb:93,mf:65,eco:14,bat:80, up:8, net:5, bal:{food:4,water:3,minerals:2,mfgGoods:-1,services:-1,energy:0}},
-  'Colombia':        {iso2:'co', flag:'🇨🇴',isoNum:'170',continent:'South America',  color:'#e8a838',pop:52,  urb:82,mf:45,eco:10,bat:160,up:16,net:4, bal:{food:2,water:3,minerals:3,mfgGoods:-1,services:-1,energy:1}},
-  'Chile':           {iso2:'cl', flag:'🇨🇱',isoNum:'152',continent:'South America',  color:'#1565c0',pop:20,  urb:88,mf:65,eco:10,bat:50, up:5, net:5, bal:{food:1,water:1,minerals:5,mfgGoods:-1,services:-2,energy:-1}},
-  'Venezuela':       {iso2:'ve', flag:'🇻🇪',isoNum:'862',continent:'South America',  color:'#c62828',pop:29,  urb:88,mf:10,eco:8, bat:90, up:9, net:3, bal:{food:-1,water:2,minerals:2,mfgGoods:-3,services:-2,energy:6}},
-  'Peru':            {iso2:'pe', flag:'🇵🇪',isoNum:'604',continent:'South America',  color:'#6d4c41',pop:34,  urb:79,mf:50,eco:8, bat:80, up:8, net:4, bal:{food:1,water:2,minerals:4,mfgGoods:-1,services:-1,energy:0}},
+  // Brazil: food/water superpower but weak on mfg/services
+  'Brazil':          {iso2:'br', flag:'🇧🇷',isoNum:'076',continent:'South America',  color:'#2dc653',pop:215, urb:88,mf:55,eco:34,bat:300,up:30,net:6, bal:{food:5,water:4,minerals:3,mfgGoods:-3,services:-3,energy:1}},
+  'Argentina':       {iso2:'ar', flag:'🇦🇷',isoNum:'032',continent:'South America',  color:'#2980b9',pop:46,  urb:93,mf:65,eco:14,bat:80, up:8, net:5, bal:{food:4,water:2,minerals:2,mfgGoods:-2,services:-1,energy:-1}},
+  'Colombia':        {iso2:'co', flag:'🇨🇴',isoNum:'170',continent:'South America',  color:'#e8a838',pop:52,  urb:82,mf:45,eco:10,bat:160,up:16,net:4, bal:{food:2,water:2,minerals:2,mfgGoods:-2,services:-2,energy:1}},
+  'Chile':           {iso2:'cl', flag:'🇨🇱',isoNum:'152',continent:'South America',  color:'#1565c0',pop:20,  urb:88,mf:65,eco:10,bat:50, up:5, net:5, bal:{food:1,water:-1,minerals:5,mfgGoods:-2,services:-1,energy:-2}},
+  'Venezuela':       {iso2:'ve', flag:'🇻🇪',isoNum:'862',continent:'South America',  color:'#c62828',pop:29,  urb:88,mf:10,eco:8, bat:90, up:9, net:3, bal:{food:-2,water:1,minerals:1,mfgGoods:-4,services:-3,energy:6}},
+  'Peru':            {iso2:'pe', flag:'🇵🇪',isoNum:'604',continent:'South America',  color:'#6d4c41',pop:34,  urb:79,mf:50,eco:8, bat:80, up:8, net:4, bal:{food:1,water:1,minerals:4,mfgGoods:-2,services:-2,energy:-1}},
   // ── EUROPE ──
-  'Russia':          {iso2:'ru', flag:'🇷🇺',isoNum:'643',continent:'Europe',         color:'#c9463c',pop:143, urb:75,mf:10,eco:34,bat:198,up:20,net:7, bal:{food:3,water:4,minerals:5,mfgGoods:-2,services:-2,energy:5}},
-  'United Kingdom':  {iso2:'gb', flag:'🇬🇧',isoNum:'826',continent:'Europe',         color:'#9b59b6',pop:67,  urb:84,mf:80,eco:38,bat:90, up:9, net:8, bal:{food:-2,water:0,minerals:-1,mfgGoods:2,services:4,energy:-2}},
-  'France':          {iso2:'fr', flag:'🇫🇷',isoNum:'250',continent:'Europe',         color:'#3498db',pop:68,  urb:82,mf:75,eco:36,bat:115,up:12,net:7, bal:{food:3,water:2,minerals:0,mfgGoods:2,services:2,energy:-1}},
-  'Germany':         {iso2:'de', flag:'🇩🇪',isoNum:'276',continent:'Europe',         color:'#7f8c8d',pop:84,  urb:78,mf:85,eco:44,bat:100,up:10,net:8, bal:{food:1,water:2,minerals:1,mfgGoods:5,services:2,energy:-2}},
-  'Italy':           {iso2:'it', flag:'🇮🇹',isoNum:'380',continent:'Europe',         color:'#1a9966',pop:60,  urb:72,mf:68,eco:30,bat:95, up:10,net:6, bal:{food:1,water:1,minerals:0,mfgGoods:2,services:2,energy:-2}},
-  'Spain':           {iso2:'es', flag:'🇪🇸',isoNum:'724',continent:'Europe',         color:'#c0392b',pop:47,  urb:81,mf:72,eco:22,bat:70, up:7, net:6, bal:{food:2,water:1,minerals:0,mfgGoods:0,services:2,energy:-2}},
-  'Ukraine':         {iso2:'ua', flag:'🇺🇦',isoNum:'804',continent:'Europe',         color:'#f1c40f',pop:44,  urb:70,mf:55,eco:10,bat:100,up:10,net:4, bal:{food:5,water:3,minerals:3,mfgGoods:-2,services:-2,energy:0}},
-  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:2,minerals:2,mfgGoods:1,services:1,energy:-1}},
-  'Netherlands':     {iso2:'nl', flag:'🇳🇱',isoNum:'528',continent:'Europe',         color:'#e67e22',pop:18,  urb:93,mf:92,eco:20,bat:28, up:3, net:9, bal:{food:1,water:0,minerals:-1,mfgGoods:3,services:4,energy:-2}},
-  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:1,water:2,minerals:2,mfgGoods:3,services:2,energy:-4}},
-  'Norway':          {iso2:'no', flag:'🇳🇴',isoNum:'578',continent:'Europe',         color:'#1f618d',pop:5,   urb:83,mf:97,eco:18,bat:16, up:2, net:9, bal:{food:-3,water:2,minerals:2,mfgGoods:-2,services:0,energy:5}},
-  'Turkey':          {iso2:'tr', flag:'🇹🇷',isoNum:'792',continent:'Europe',         color:'#f39c12',pop:85,  urb:77,mf:20,eco:18,bat:200,up:20,net:4, bal:{food:2,water:1,minerals:1,mfgGoods:1,services:0,energy:-1}},
-  'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:-2,water:1,minerals:-1,mfgGoods:2,services:5,energy:-2}},
-  'Greece':          {iso2:'gr', flag:'🇬🇷',isoNum:'300',continent:'Europe',         color:'#00bcd4',pop:10,  urb:80,mf:55,eco:10,bat:80, up:8, net:4, bal:{food:1,water:1,minerals:0,mfgGoods:-1,services:2,energy:-2}},
+  // Russia: energy/mineral giant, terrible on mfg quality/services
+  'Russia':          {iso2:'ru', flag:'🇷🇺',isoNum:'643',continent:'Europe',         color:'#c9463c',pop:143, urb:75,mf:10,eco:34,bat:198,up:20,net:7, bal:{food:2,water:3,minerals:5,mfgGoods:-3,services:-3,energy:5}},
+  // UK: services/finance powerhouse, imports almost everything physical
+  'United Kingdom':  {iso2:'gb', flag:'🇬🇧',isoNum:'826',continent:'Europe',         color:'#9b59b6',pop:67,  urb:84,mf:80,eco:38,bat:90, up:9, net:8, bal:{food:-3,water:-1,minerals:-2,mfgGoods:1,services:5,energy:-3}},
+  // France: balanced but not dominant anywhere
+  'France':          {iso2:'fr', flag:'🇫🇷',isoNum:'250',continent:'Europe',         color:'#3498db',pop:68,  urb:82,mf:75,eco:36,bat:115,up:12,net:7, bal:{food:2,water:1,minerals:-1,mfgGoods:2,services:2,energy:-2}},
+  // Germany: mfg king, imports energy and food
+  'Germany':         {iso2:'de', flag:'🇩🇪',isoNum:'276',continent:'Europe',         color:'#7f8c8d',pop:84,  urb:78,mf:85,eco:44,bat:100,up:10,net:8, bal:{food:-1,water:1,minerals:0,mfgGoods:5,services:2,energy:-3}},
+  'Italy':           {iso2:'it', flag:'🇮🇹',isoNum:'380',continent:'Europe',         color:'#1a9966',pop:60,  urb:72,mf:68,eco:30,bat:95, up:10,net:6, bal:{food:1,water:0,minerals:-1,mfgGoods:2,services:2,energy:-3}},
+  'Spain':           {iso2:'es', flag:'🇪🇸',isoNum:'724',continent:'Europe',         color:'#c0392b',pop:47,  urb:81,mf:72,eco:22,bat:70, up:7, net:6, bal:{food:2,water:-1,minerals:0,mfgGoods:0,services:2,energy:-2}},
+  'Ukraine':         {iso2:'ua', flag:'🇺🇦',isoNum:'804',continent:'Europe',         color:'#f1c40f',pop:44,  urb:70,mf:55,eco:10,bat:100,up:10,net:4, bal:{food:5,water:2,minerals:2,mfgGoods:-3,services:-3,energy:-1}},
+  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:1,minerals:1,mfgGoods:1,services:0,energy:-2}},
+  'Netherlands':     {iso2:'nl', flag:'🇳🇱',isoNum:'528',continent:'Europe',         color:'#e67e22',pop:18,  urb:93,mf:92,eco:20,bat:28, up:3, net:9, bal:{food:1,water:-1,minerals:-2,mfgGoods:2,services:4,energy:-3}},
+  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:0,water:2,minerals:2,mfgGoods:2,services:2,energy:-4}},
+  'Norway':          {iso2:'no', flag:'🇳🇴',isoNum:'578',continent:'Europe',         color:'#1f618d',pop:5,   urb:83,mf:97,eco:18,bat:16, up:2, net:9, bal:{food:-3,water:2,minerals:2,mfgGoods:-2,services:1,energy:5}},
+  'Turkey':          {iso2:'tr', flag:'🇹🇷',isoNum:'792',continent:'Europe',         color:'#f39c12',pop:85,  urb:77,mf:20,eco:18,bat:200,up:20,net:4, bal:{food:2,water:0,minerals:1,mfgGoods:1,services:-1,energy:-2}},
+  'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:-3,water:1,minerals:-2,mfgGoods:2,services:6,energy:-3}},
+  'Greece':          {iso2:'gr', flag:'🇬🇷',isoNum:'300',continent:'Europe',         color:'#00bcd4',pop:10,  urb:80,mf:55,eco:10,bat:80, up:8, net:4, bal:{food:1,water:0,minerals:0,mfgGoods:-2,services:2,energy:-2}},
   // ── MIDDLE EAST ──
-  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:40,bat:180,up:18,net:9, bal:{food:-3,water:-3,minerals:4,mfgGoods:-3,services:-1,energy:7}},
-  'Iran':            {iso2:'ir', flag:'🇮🇷',isoNum:'364',continent:'Middle East',    color:'#388e3c',pop:87,  urb:77,mf:5, eco:20,bat:220,up:22,net:5, bal:{food:0,water:0,minerals:3,mfgGoods:-2,services:-2,energy:5}},
-  'Israel':          {iso2:'il', flag:'🇮🇱',isoNum:'376',continent:'Middle East',    color:'#6fa8dc',pop:10,  urb:93,mf:50,eco:14,bat:100,up:10,net:7, bal:{food:-1,water:-2,minerals:0,mfgGoods:1,services:4,energy:-1}},
-  'Egypt':           {iso2:'eg', flag:'🇪🇬',isoNum:'818',continent:'Middle East',    color:'#d4ac0d',pop:104, urb:43,mf:20,eco:14,bat:150,up:15,net:5, bal:{food:-1,water:0,minerals:1,mfgGoods:-2,services:0,energy:1}},
+  // Saudi: energy colossus, imports almost all food/water/manufactured goods
+  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:40,bat:180,up:18,net:9, bal:{food:-4,water:-4,minerals:3,mfgGoods:-4,services:-2,energy:8}},
+  'Iran':            {iso2:'ir', flag:'🇮🇷',isoNum:'364',continent:'Middle East',    color:'#388e3c',pop:87,  urb:77,mf:5, eco:20,bat:220,up:22,net:5, bal:{food:-1,water:-1,minerals:3,mfgGoods:-3,services:-2,energy:5}},
+  'Israel':          {iso2:'il', flag:'🇮🇱',isoNum:'376',continent:'Middle East',    color:'#6fa8dc',pop:10,  urb:93,mf:50,eco:14,bat:100,up:10,net:7, bal:{food:-2,water:-3,minerals:-1,mfgGoods:1,services:4,energy:-2}},
+  'Egypt':           {iso2:'eg', flag:'🇪🇬',isoNum:'818',continent:'Middle East',    color:'#d4ac0d',pop:104, urb:43,mf:20,eco:14,bat:150,up:15,net:5, bal:{food:-2,water:-1,minerals:1,mfgGoods:-2,services:0,energy:1}},
   // ── AFRICA ──
-  'Nigeria':         {iso2:'ng', flag:'🇳🇬',isoNum:'566',continent:'Africa',         color:'#558b2f',pop:220, urb:54,mf:40,eco:14,bat:100,up:10,net:5, bal:{food:0,water:1,minerals:2,mfgGoods:-2,services:-3,energy:4}},
-  'South Africa':    {iso2:'za', flag:'🇿🇦',isoNum:'710',continent:'Africa',         color:'#8e44ad',pop:60,  urb:68,mf:55,eco:16,bat:80, up:8, net:6, bal:{food:1,water:1,minerals:5,mfgGoods:0,services:-1,energy:0}},
-  'Ethiopia':        {iso2:'et', flag:'🇪🇹',isoNum:'231',continent:'Africa',         color:'#00695c',pop:126, urb:23,mf:15,eco:6, bat:120,up:12,net:3, bal:{food:2,water:2,minerals:1,mfgGoods:-3,services:-3,energy:0}},
-  'Algeria':         {iso2:'dz', flag:'🇩🇿',isoNum:'012',continent:'Africa',         color:'#4e9a51',pop:46,  urb:75,mf:20,eco:12,bat:100,up:10,net:4, bal:{food:-1,water:-1,minerals:2,mfgGoods:-2,services:-1,energy:5}},
+  'Nigeria':         {iso2:'ng', flag:'🇳🇬',isoNum:'566',continent:'Africa',         color:'#558b2f',pop:220, urb:54,mf:40,eco:14,bat:100,up:10,net:5, bal:{food:0,water:1,minerals:1,mfgGoods:-3,services:-3,energy:4}},
+  'South Africa':    {iso2:'za', flag:'🇿🇦',isoNum:'710',continent:'Africa',         color:'#8e44ad',pop:60,  urb:68,mf:55,eco:16,bat:80, up:8, net:6, bal:{food:1,water:0,minerals:5,mfgGoods:-1,services:-1,energy:-1}},
+  'Ethiopia':        {iso2:'et', flag:'🇪🇹',isoNum:'231',continent:'Africa',         color:'#00695c',pop:126, urb:23,mf:15,eco:6, bat:120,up:12,net:3, bal:{food:2,water:1,minerals:1,mfgGoods:-4,services:-4,energy:-1}},
+  'Algeria':         {iso2:'dz', flag:'🇩🇿',isoNum:'012',continent:'Africa',         color:'#4e9a51',pop:46,  urb:75,mf:20,eco:12,bat:100,up:10,net:4, bal:{food:-2,water:-2,minerals:2,mfgGoods:-2,services:-1,energy:5}},
   // ── ASIA ──
-  'China':           {iso2:'cn', flag:'🇨🇳',isoNum:'156',continent:'Asia',           color:'#e53935',pop:1400,urb:65,mf:5, eco:60,bat:600,up:60,net:8, bal:{food:-3,water:-2,minerals:3,mfgGoods:5,services:0,energy:-2}},
-  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:7, bal:{food:2,water:1,minerals:2,mfgGoods:1,services:2,energy:-2}},
-  'Japan':           {iso2:'jp', flag:'🇯🇵',isoNum:'392',continent:'Asia',           color:'#e84393',pop:124, urb:92,mf:75,eco:42,bat:140,up:14,net:7, bal:{food:-2,water:1,minerals:-2,mfgGoods:5,services:3,energy:-3}},
-  'South Korea':     {iso2:'kr', flag:'🇰🇷',isoNum:'410',continent:'Asia',           color:'#1abc9c',pop:52,  urb:81,mf:70,eco:26,bat:230,up:23,net:8, bal:{food:-2,water:1,minerals:-2,mfgGoods:5,services:2,energy:-3}},
-  'Indonesia':       {iso2:'id', flag:'🇮🇩',isoNum:'360',continent:'Asia',           color:'#d35400',pop:274, urb:58,mf:50,eco:20,bat:160,up:16,net:6, bal:{food:2,water:3,minerals:4,mfgGoods:0,services:-2,energy:2}},
-  'Pakistan':        {iso2:'pk', flag:'🇵🇰',isoNum:'586',continent:'Asia',           color:'#1b5e20',pop:231, urb:37,mf:25,eco:12,bat:200,up:20,net:4, bal:{food:1,water:1,minerals:1,mfgGoods:-2,services:-2,energy:0}},
+  // China: manufacturing giant, energy-hungry, food-stressed, huge military burden
+  'China':           {iso2:'cn', flag:'🇨🇳',isoNum:'156',continent:'Asia',           color:'#e53935',pop:1400,urb:65,mf:5, eco:55,bat:600,up:60,net:5, bal:{food:-4,water:-3,minerals:2,mfgGoods:5,services:-1,energy:-3}},
+  // India: services+food but energy/minerals deficit, high upkeep
+  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:6, bal:{food:2,water:0,minerals:1,mfgGoods:0,services:2,energy:-3}},
+  // Japan: mfg/services leader, imports almost all raw materials
+  'Japan':           {iso2:'jp', flag:'🇯🇵',isoNum:'392',continent:'Asia',           color:'#e84393',pop:124, urb:92,mf:75,eco:42,bat:140,up:14,net:7, bal:{food:-3,water:0,minerals:-3,mfgGoods:5,services:3,energy:-4}},
+  // South Korea: similar to Japan, smaller
+  'South Korea':     {iso2:'kr', flag:'🇰🇷',isoNum:'410',continent:'Asia',           color:'#1abc9c',pop:52,  urb:81,mf:70,eco:26,bat:230,up:23,net:8, bal:{food:-3,water:0,minerals:-3,mfgGoods:5,services:2,energy:-4}},
+  'Indonesia':       {iso2:'id', flag:'🇮🇩',isoNum:'360',continent:'Asia',           color:'#d35400',pop:274, urb:58,mf:50,eco:20,bat:160,up:16,net:6, bal:{food:2,water:3,minerals:4,mfgGoods:-1,services:-2,energy:2}},
+  'Pakistan':        {iso2:'pk', flag:'🇵🇰',isoNum:'586',continent:'Asia',           color:'#1b5e20',pop:231, urb:37,mf:25,eco:12,bat:200,up:20,net:4, bal:{food:1,water:0,minerals:1,mfgGoods:-3,services:-3,energy:-1}},
   'Vietnam':         {iso2:'vn', flag:'🇻🇳',isoNum:'704',continent:'Asia',           color:'#b71c1c',pop:98,  urb:38,mf:15,eco:10,bat:120,up:12,net:5, bal:{food:3,water:2,minerals:2,mfgGoods:1,services:-2,energy:-2}},
-  'Thailand':        {iso2:'th', flag:'🇹🇭',isoNum:'764',continent:'Asia',           color:'#6a1b9a',pop:71,  urb:53,mf:30,eco:12,bat:100,up:10,net:5, bal:{food:3,water:3,minerals:1,mfgGoods:1,services:0,energy:-1}},
-  'Bangladesh':      {iso2:'bd', flag:'🇧🇩',isoNum:'050',continent:'Asia',           color:'#006064',pop:170, urb:40,mf:25,eco:8, bat:100,up:10,net:4, bal:{food:1,water:2,minerals:0,mfgGoods:1,services:-2,energy:-1}},
-  'North Korea':     {iso2:'kp', flag:'🇰🇵',isoNum:'408',continent:'Asia',           color:'#37474f',pop:26,  urb:63,mf:0, eco:12,bat:180,up:18,net:4, bal:{food:-1,water:1,minerals:3,mfgGoods:-1,services:-3,energy:0}},
+  'Thailand':        {iso2:'th', flag:'🇹🇭',isoNum:'764',continent:'Asia',           color:'#6a1b9a',pop:71,  urb:53,mf:30,eco:12,bat:100,up:10,net:5, bal:{food:3,water:2,minerals:0,mfgGoods:1,services:-1,energy:-2}},
+  'Bangladesh':      {iso2:'bd', flag:'🇧🇩',isoNum:'050',continent:'Asia',           color:'#006064',pop:170, urb:40,mf:25,eco:8, bat:100,up:10,net:4, bal:{food:1,water:2,minerals:-1,mfgGoods:1,services:-3,energy:-2}},
+  // North Korea: buffed — strong military machine + minerals, crippled services/food; higher eco start
+  'North Korea':     {iso2:'kp', flag:'🇰🇵',isoNum:'408',continent:'Asia',           color:'#37474f',pop:26,  urb:63,mf:0, eco:16,bat:180,up:14,net:6, bal:{food:-2,water:1,minerals:4,mfgGoods:1,services:-4,energy:-1}},
   // ── OCEANIA ──
-  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:2,minerals:5,mfgGoods:-1,services:1,energy:2}},
-  'New Zealand':     {iso2:'nz', flag:'🇳🇿',isoNum:'554',continent:'Oceania',        color:'#7d3c98',pop:5,   urb:87,mf:85,eco:10,bat:8,  up:1, net:7, bal:{food:4,water:4,minerals:2,mfgGoods:-1,services:1,energy:0}},
+  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:1,minerals:5,mfgGoods:-2,services:1,energy:2}},
+  'New Zealand':     {iso2:'nz', flag:'🇳🇿',isoNum:'554',continent:'Oceania',        color:'#7d3c98',pop:5,   urb:87,mf:85,eco:10,bat:8,  up:1, net:7, bal:{food:4,water:3,minerals:2,mfgGoods:-2,services:1,energy:-1}},
 };
 
 const GOVERNMENT_TYPES = ['Democracy','Republic','Federal Republic','Constitutional Monarchy','Monarchy','Dictatorship','Military Junta','Communism','Oligarchy','Technocracy','Theocracy','Presidential Republic'];
@@ -1120,25 +1171,41 @@ function renderNpcCard(iso){
   const npcHdr=`<div class="card-header"><span class="card-flag">${d.flag}</span><div><div class="card-name">${d.name}</div><div class="card-player text-dim">Major NPC — 2025</div></div><span class="card-gov" style="background:var(--surface2);color:var(--text-dim);font-size:9px">NPC</span></div>${d.note?`<p style="font-size:10px;color:var(--text-dim);margin:6px 0 8px;padding:5px 7px;background:var(--surface2);border-radius:var(--radius);border-left:2px solid var(--accent)">${d.note}</p>`:''}`;
   const relRows=playerOrder.map(pid=>{
     const m=PLAYER_META[pid]; if(!m) return '';
-    const score=d.rel[pid]??0, rl=relLabel(score);
+    const score=(GS.npcRelations?.[iso]?.[pid]) ?? d.rel[pid] ?? 0, rl=relLabel(score);
+    const isMe = session.country === pid;
+    const canImprove = isMe && score < 90;
     return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
       <span style="width:16px;text-align:center">${m.flag}</span><span style="flex:1">${pid}</span>
       <div style="width:70px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden"><div style="width:${Math.abs(score)}%;height:100%;background:${rl.color};border-radius:3px"></div></div>
       <span style="width:50px;text-align:right;font-weight:700;color:${rl.color}">${rl.label}</span>
+      ${canImprove?`<button class="btn" style="font-size:9px;padding:2px 6px;margin-left:4px" title="Spend 5 eco to improve relations by +10" onclick="improveNpcRelations('${iso}')">+10 (5💰)</button>`:''}
     </div>`;
   }).join('');
   document.getElementById('action-panel').innerHTML='<p class="placeholder" style="padding:16px">This is an NPC country — no actions available.</p>';
   switchPanelTab('economy');
   document.getElementById('cc-economy').innerHTML=npcHdr+`
-    <div class="section-title">📦 Resources</div>
+    <div class="section-title">📦 Trade Resources</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">
       <span style="font-size:10px;color:var(--text-dim);margin-right:2px">SELLS:</span>
       ${d.sells.map(r=>`<span class="badge" style="color:var(--green);border-color:var(--green)">${r}</span>`).join('')}
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       <span style="font-size:10px;color:var(--text-dim);margin-right:2px">BUYS:</span>
       ${d.buys.map(r=>`<span class="badge" style="color:var(--gold);border-color:var(--gold)">${r}</span>`).join('')}
-    </div>`;
+    </div>
+    <div class="section-title">⚔️ Military Overview</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-size:11px;margin-bottom:6px">
+      ${mil.battalions?`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)"><span class="text-dim">Battalions</span><span style="font-weight:700">${mil.battalions.toLocaleString()}</span></div>`:''}
+      ${mil.mechDivisions?`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)"><span class="text-dim">Mech Divs</span><span style="font-weight:700">${mil.mechDivisions}</span></div>`:''}
+      ${mil.fleets?`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)"><span class="text-dim">Fleets</span><span style="font-weight:700">${mil.fleets}</span></div>`:''}
+      ${mil.airWings?`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)"><span class="text-dim">Air Wings</span><span style="font-weight:700">${mil.airWings}</span></div>`:''}
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+      <span class="badge" style="background:${mil.readiness==='High'?'#2dc653':mil.readiness==='Medium'?'#f4a261':'#555'};color:#fff;border:none">${mil.readiness} Readiness</span>
+      ${mil.nukes?`<span class="badge" style="background:#8b1a1a;color:#fff;border:none">☢️ Nuclear</span>`:''}
+      ${mil.carrierGroups?`<span class="badge" style="border-color:var(--accent);color:var(--accent)">🚢 ${mil.carrierGroups} Carrier${mil.carrierGroups>1?'s':''}</span>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--text-dim)">Switch to ⚔️ Military tab for full breakdown · 🤝 Diplo tab for relations</div>`;
   document.getElementById('cc-military').innerHTML=npcHdr+`
     <div class="section-title">⚔️ Military Strength</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;margin-bottom:8px">
@@ -1210,7 +1277,7 @@ function makeCountryState(id){
   const upkeep = pc.up;
   const net = pc.net;
   return {
-    id, stability:60,
+    id, stability:60, morale:100,
     population: pc.pop,
     urbanisation: pc.urb,
     mediaFreedom: pc.mf,
@@ -1239,17 +1306,19 @@ function makeCountryState(id){
 
 // ── Tradeable resources on the player market ──
 const MARKET_RESOURCES = {
-  mfgGoods: { label:'Manufactured Goods', icon:'🏭', basePrice:8,  field:'mfgGoods'  },
-  services:  { label:'Services',           icon:'💼', basePrice:5,  field:'services'  },
-  food:      { label:'Food',               icon:'🌾', basePrice:2,  field:'food'      },
-  minerals:  { label:'Minerals',           icon:'⛏️', basePrice:4,  field:'minerals'  },
+  food:         { label:'Food',                icon:'🌾', basePrice:2,  field:'food'         },
+  water:        { label:'Water',               icon:'💧', basePrice:2,  field:'water'         },
+  minerals:     { label:'Minerals',            icon:'⛏️', basePrice:4,  field:'minerals'      },
+  construction: { label:'Construction Mats',   icon:'🧱', basePrice:3,  field:'construction'  },
+  mfgGoods:     { label:'Manufactured Goods',  icon:'🏭', basePrice:8,  field:'mfgGoods'      },
+  services:     { label:'Services',            icon:'💼', basePrice:5,  field:'services'      },
 };
 
 const INITIAL_STATE = {
   turn:0, date:'January 2025', phase:'setup',
   slots:{},
   countries:{},
-  worldMarket:{food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}},
+  worldMarket:{food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}},
   market:{ offers:[] },
   wars:[],events:[],turnLog:[],newsBoard:[],
   chat:[],
@@ -1258,6 +1327,8 @@ const INITIAL_STATE = {
   nextUnTurn:5,
   resourceDiscoveries:[],
   globalAggressionThreshold:30,
+  diplomacyProposals:[],
+  npcRelations:{},
 };
 
 const TURN_DATES = [
@@ -1457,13 +1528,27 @@ function normalizeState(s){
     if(!c.pressStatements) c.pressStatements = [];
     if(c.aggressionScore === undefined) c.aggressionScore = 0;
     if(!c.transitQueue) c.transitQueue = [];
+    if(c.morale === undefined) c.morale = 100;
+    if(!c.completedProjects) c.completedProjects = [];
+    if(!c.publicStance) c.publicStance = {};
+  });
+  if(!s.turnResults) s.turnResults = {};
+  s.diplomacyProposals = s.diplomacyProposals || [];
+  s.npcRelations = s.npcRelations || {};
+  // Init NPC relations from hardcoded data for any player country not yet tracked
+  Object.entries(NPC_DATA).forEach(([iso, npc]) => {
+    if(!s.npcRelations[iso]) s.npcRelations[iso] = {};
+    Object.keys(s.countries).forEach(pid => {
+      if(s.npcRelations[iso][pid] === undefined) s.npcRelations[iso][pid] = npc.rel[pid] ?? 0;
+    });
   });
   s.unVotes = s.unVotes || [];
   if(s.nextUnTurn === undefined) s.nextUnTurn = 5;
   s.resourceDiscoveries = s.resourceDiscoveries || [];
   if(!s.market) s.market = { offers:[] };
   if(!s.market.offers) s.market.offers = [];
-  if(!s.worldMarket) s.worldMarket = {food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}};
+  if(!s.worldMarket) s.worldMarket = {food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}};
+  if(!s.worldMarket.construction) s.worldMarket.construction = {price:3,trend:0}; // migrate old saves
   // Rebuild rel entries between all player countries
   const cids = Object.keys(s.countries);
   cids.forEach(id => {
@@ -1585,8 +1670,8 @@ function renderCountryCard(id){
   // ── Economy tab ──
   document.getElementById('cc-economy').innerHTML=hdr+`
     <div class="stat-grid">
-      <div class="stat-box"><div class="label">Economy Pool</div><div class="value text-green">${c.economy.pool}</div><div class="sub">+${c.economy.netIncome}/turn</div></div>
-      <div class="stat-box"><div class="label">Stability</div><div class="value" style="color:${stab.color}">${c.stability}</div><div class="sub">${stab.label}</div></div>
+      <div class="stat-box"><div class="label">Economy Pool</div><div class="value text-green">${c.economy.pool}</div><div class="sub">+${c.economy.netIncome}/turn${(c.economy.tradeIncome||0)>0?` <span style="color:var(--green)">+${c.economy.tradeIncome} trade</span>`:''}</div></div>
+      <div class="stat-box"><div class="label">Stability / Morale</div><div class="value" style="color:${stab.color}">${c.stability}</div><div class="sub">${stab.label} · Morale <span style="color:${(c.morale??100)>=70?'var(--green)':(c.morale??100)>=40?'var(--orange)':'var(--red)'}">${c.morale??100}%</span></div></div>
       <div class="stat-box"><div class="label">Population</div><div class="value">${typeof c.population==='number'?c.population.toFixed(1):c.population}M</div><div class="sub">${c.urbanisation}% urban · <span style="color:${(c.populationGrowthRate||0)>0?'var(--green)':(c.populationGrowthRate||0)<0?'var(--red)':'var(--text-dim)'}">${(c.populationGrowthRate||0)>0?'+':''}${(c.populationGrowthRate||0).toFixed(2)}%/t</span></div></div>
       <div class="stat-box"><div class="label">Prestige</div><div class="value text-gold">${c.prestige}</div><div class="sub">Rank #${rank(id)}</div></div>
     </div>
@@ -1600,12 +1685,21 @@ function renderCountryCard(id){
       ${rr('Mfg Goods',c.resources.mfgGoods,c.resourceBalance.mfgGoods)}
       ${rr('Services',c.resources.services,c.resourceBalance.services)}
     </table>
-    ${c.stockpile?`<div class="section-title" style="margin-top:10px">⚙️ Stockpile</div>
+    ${c.stockpile?(()=>{
+      const constStock = c.resources?.construction||0;
+      const minStock   = c.resources?.minerals||0;
+      const constBonus = Math.min(3, Math.floor(Math.max(0, constStock-5)/10));
+      const minBonus   = Math.min(2, Math.floor(Math.max(0, minStock-5)/10));
+      const energyBal  = c.resourceBalance?.energy||0;
+      const energyBonus= energyBal>0?Math.min(2,energyBal):0;
+      return `<div class="section-title" style="margin-top:10px">⚙️ Build Stockpile <span style="font-size:9px;color:var(--text-dim);font-weight:400">(used for military & projects)</span></div>
     <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;margin-top:4px">
-      <span>🧱 <strong>${c.stockpile.constructionMats||0}</strong> <span class="text-dim">(+${c.stockpileRate?.constructionMats||0}/t)</span></span>
-      <span>💎 <strong>${c.stockpile.critMinerals||0}</strong> <span class="text-dim">(+${c.stockpileRate?.critMinerals||0}/t)</span></span>
-      <span>⚡ <strong>${c.stockpile.energy||0}</strong> <span class="text-dim">(+${c.stockpileRate?.energy||0}/t)</span></span>
-    </div>`:''}
+      <span title="Base replenishment + bonus from Construction resources in stock">🧱 <strong>${c.stockpile.constructionMats||0}</strong> <span class="text-dim">(+${(c.stockpileRate?.constructionMats||0)+constBonus}/t${constBonus>0?` <span style="color:var(--green)">+${constBonus} from stock</span>`:''})</span></span>
+      <span title="Base replenishment + bonus from Minerals in stock">💎 <strong>${c.stockpile.critMinerals||0}</strong> <span class="text-dim">(+${(c.stockpileRate?.critMinerals||0)+minBonus}/t${minBonus>0?` <span style="color:var(--green)">+${minBonus} from stock</span>`:''})</span></span>
+      <span title="Base replenishment + bonus from energy balance">⚡ <strong>${c.stockpile.energy||0}</strong> <span class="text-dim">(+${(c.stockpileRate?.energy||0)+energyBonus}/t${energyBonus>0?` <span style="color:var(--green)">+${energyBonus} energy</span>`:''})</span></span>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:var(--radius)">💡 Buy <strong>Minerals</strong> or <strong>Construction Mats</strong> on the market to boost your build stockpile each turn.</div>`;
+    })():''}
   `;
 
   // ── Military tab ──
@@ -1655,6 +1749,27 @@ function renderCountryCard(id){
       ${(c.embargoes||[]).map(a=>`<span class="badge" style="border-color:var(--red);color:var(--red)">⛔ Embargo: ${a}</span>`).join('')}
       ${!c.diplomacy.allies.length&&!c.diplomacy.rivals.length&&!c.diplomacy.agreements.length&&!(c.sanctioning?.length)&&!(c.embargoes?.length)?'<span class="text-dim" style="font-size:10px">No agreements</span>':''}
     </div>
+    ${(()=>{
+      const props = (GS.diplomacyProposals||[]).filter(p=>p.to===id||p.from===id);
+      if(!props.length) return '';
+      return `<div class="section-title" style="margin-top:10px;color:var(--gold)">📬 Pending Proposals</div>`+
+        props.map(p=>{
+          const incoming = p.to===id;
+          const typeLabel = p.type==='alliance'?'🤝 Alliance':'📋 Trade Deal';
+          const other = incoming?p.from:p.to;
+          if(incoming && session.country===id){
+            return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--surface2);border-radius:var(--radius);margin-bottom:4px;font-size:11px">
+              <span style="flex:1">${typeLabel} from <strong>${other}</strong></span>
+              <button class="btn" style="font-size:10px;padding:2px 8px;background:#2dc65322;border-color:var(--green);color:var(--green)" onclick="acceptProposal('${p.id}')">Accept</button>
+              <button class="btn" style="font-size:10px;padding:2px 8px;background:#e05c6b22;border-color:var(--red);color:var(--red)" onclick="rejectProposal('${p.id}')">Reject</button>
+            </div>`;
+          } else {
+            return `<div style="padding:5px 6px;background:var(--surface2);border-radius:var(--radius);margin-bottom:4px;font-size:11px;color:var(--text-dim)">
+              ${typeLabel} ${incoming?'from <strong>'+other+'</strong> (incoming)':'→ <strong>'+other+'</strong> (awaiting response)'}
+            </div>`;
+          }
+        }).join('');
+    })()}
     ${c.projects.length?`<div class="section-title" style="margin-top:10px">🏗 Projects</div>${c.projects.map(p=>`<div class="mil-row"><span>${p.name}</span><span class="text-dim">${p.turnsLeft}t</span></div>`).join('')}`:''}
     <div class="section-title" style="margin-top:10px">🌍 Relations with All Countries</div>
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">How other player countries view you</div>
@@ -1732,6 +1847,22 @@ function renderActionPanel(id){
   const costPanel = selAct ? `<div style="background:var(--surface);border:1px solid ${(canAfford(selAct,usedEco,usedMat,usedMin,usedEgy)&&!alreadyResearching&&!otherTech)?'var(--border2)':'var(--red)'};border-radius:var(--radius);padding:6px 8px;margin:5px 0;font-size:11px">
     <div style="font-weight:700;margin-bottom:2px">${selAct.name} <span style="font-size:9px;color:var(--text-dim)">[${selAct.type} · ${selAct.scope}]</span></div>
     <div style="color:var(--text-dim);font-size:10px;margin-bottom:4px">${selAct.desc}</div>
+    ${selAct.effects && Object.keys(selAct.effects).length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px">${[
+      selAct.effects.net       ? `<span style="background:#1a2e1a;border:1px solid var(--green);color:var(--green);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.net} net income/turn ♾</span>` : '',
+      selAct.effects.trade     ? `<span style="background:#1a2e1a;border:1px solid var(--green);color:var(--green);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.trade} trade/turn ♾</span>` : '',
+      selAct.effects.stability ? `<span style="background:#1a1e2e;border:1px solid var(--accent);color:var(--accent);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.stability} stability</span>` : '',
+      selAct.effects.prestige  ? `<span style="background:#2e2a1a;border:1px solid var(--gold);color:var(--gold);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.prestige} prestige</span>` : '',
+      selAct.effects.pool      ? `<span style="background:#1a2e1a;border:1px solid var(--green);color:var(--green);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.pool} eco pool</span>` : '',
+      selAct.effects.dipPts    ? `<span style="background:#1a1e2e;border:1px solid var(--accent);color:var(--accent);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.dipPts} diplo pts</span>` : '',
+      selAct.effects.techPts   ? `<span style="background:#2e1a2e;border:1px solid #a78bfa;color:#a78bfa;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.techPts} tech pts</span>` : '',
+      selAct.effects.bat       ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.bat} battalions</span>` : '',
+      selAct.effects.mech      ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.mech} mech div</span>` : '',
+      selAct.effects.fleet     ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.fleet} fleet</span>` : '',
+      selAct.effects.air       ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.air} air wing</span>` : '',
+      selAct.effects.carrier   ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.carrier} carrier</span>` : '',
+      selAct.effects.bomber    ? `<span style="background:#2e1a1a;border:1px solid var(--orange);color:var(--orange);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">+${selAct.effects.bomber} bomber wing</span>` : '',
+      selAct.effects.nukes     ? `<span style="background:#3a0a0a;border:1px solid var(--red);color:var(--red);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">☢️ Nuclear deterrent</span>` : '',
+    ].filter(Boolean).join('')}</div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px">
       ${selAct.eco?`<span style="color:${(c.economy.pool-usedEco)>=selAct.eco?'var(--green)':'var(--red)'}">💰 ${selAct.eco} eco</span>`:''}
       ${selAct.mat?`<span style="color:${((sp.constructionMats||0)-usedMat)>=(selAct.mat||0)?'var(--text-dim)':'var(--red)'}">🧱 ${selAct.mat} mats</span>`:''}
@@ -1914,6 +2045,7 @@ function renderBottomBar(){
         <span><span class="ps-label">Eco </span><span class="ps-val text-green">${c.economy.pool}</span></span>
         <span><span class="ps-label">Bat </span><span class="ps-val">${c.military.battalions}</span></span>
         <span><span class="ps-label">Stab </span><span class="ps-val" style="color:${stab.color}">${c.stability}</span></span>
+        <span><span class="ps-label">Mor </span><span class="ps-val" style="color:${(c.morale??100)>=70?'var(--green)':(c.morale??100)>=40?'var(--orange)':'var(--red)'}">${c.morale??100}</span></span>
         <span><span class="ps-label">🏆</span><span class="ps-val text-gold">${c.prestige}</span></span>
       </div>
       <div class="pill-stab-bar"><div class="pill-stab-fill" style="width:${c.stability}%;background:${stab.color}"></div></div>
@@ -1954,22 +2086,66 @@ function renderDashboard(){
   if(session.role === 'spectator' || !GS.countries[id]){ el.innerHTML='<p class="text-dim" style="padding:20px">👁 Spectators do not have a country. View the Events or Chat tabs.</p>'; return; }
   const c=GS.countries[id], m=PLAYER_META[id], stab=stabilityLabel(c.stability), mil=c.military;
   const upkeep=mil.battalions+mil.mechDivisions*2+mil.fleets*2+mil.carrierGroups*5+mil.airWings+mil.bomberWings*4;
-  el.innerHTML=`
+  // Mark turn results as seen and build banner
+  const tr = GS.turnResults?.[id];
+  if(tr && !tr.seen){ tr.seen = true; pushState(); }
+  const trBanner = tr ? (()=>{
+    const dv=(v)=>`<span style="font-weight:700;color:${v>0?'var(--green)':v<0?'var(--red)':'var(--text-dim)'}">${v>0?'+':''}${v}</span>`;
+    const stats=[
+      {lbl:'Pool',val:tr.pool,delta:tr.poolDelta},
+      ...(tr.stabDelta!==0?[{lbl:'Stability',val:null,delta:tr.stabDelta}]:[]),
+      ...(tr.presDelta!==0?[{lbl:'Prestige',val:null,delta:tr.presDelta}]:[]),
+      ...(tr.netDelta!==0?[{lbl:'Net/Turn',val:tr.netIncome,delta:tr.netDelta}]:[]),
+      ...(tr.tradeDelta!==0?[{lbl:'Trade/Turn',val:tr.trade,delta:tr.tradeDelta}]:[]),
+    ];
+    const projHtml = (tr.projectsDone||[]).length ? `<div class="trb-proj">${tr.projectsDone.map(p=>{
+      const fx=[];
+      if(p.effects?.net)       fx.push(`+${p.effects.net}/turn income`);
+      if(p.effects?.trade)     fx.push(`+${p.effects.trade} trade/turn`);
+      if(p.effects?.stability) fx.push(`+${p.effects.stability} stability`);
+      if(p.effects?.prestige)  fx.push(`+${p.effects.prestige} prestige`);
+      return `<div class="trb-proj-item">✅ <strong>${p.name}</strong> completed${fx.length?' — '+fx.join(', '):''}</div>`;
+    }).join('')}</div>` : '';
+    return `<div class="turn-results-banner">
+      <h4>📊 Turn ${tr.turn} Results</h4>
+      <div class="trb-grid">${stats.map(s=>`<div class="trb-stat">
+        <span class="trb-val" style="color:${s.val!==null?(s.delta>0?'var(--green)':s.delta<0?'var(--red)':'var(--text)'):''}">
+          ${s.val!==null ? s.val : (s.delta>0?'+':'')+s.delta}
+        </span>
+        <span class="trb-lbl">${s.lbl}${s.val!==null?` (${s.delta>0?'+':''}${s.delta})`:''}</span>
+      </div>`).join('')}</div>
+      ${projHtml}
+    </div>`;
+  })() : '';
+  el.innerHTML=`${trBanner}
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
       <span style="font-size:32px">${m.flag}</span>
       <div><div style="font-size:20px;font-weight:700">${id}</div>
       <div class="text-dim" style="font-size:12px">${m.player} · ${m.government} · ${m.continent}</div></div>
     </div>
-    <button class="btn" style="margin-bottom:10px;border-color:var(--gold);color:var(--gold)" onclick="showObjectivesPopup('${id}')">🎯 My Secret Objective</button>
+    <button class="btn" style="margin-bottom:10px;border-color:var(--gold);color:var(--gold)" onclick="showObjectivesPopup('${id}', true)">🎯 My Secret Objective</button>
     <hr class="divider">
     <div class="dash-grid">
       <div class="dash-card"><h3>💰 Economy</h3>
         <div class="big-stat text-green">${c.economy.pool} <span class="unit">pool</span></div>
         <div style="margin-top:8px;font-size:11px">
-          ${sl('Base Income',c.economy.baseIncome)}${sl('State Income','+5')}
-          ${sl('Trade Income','+'+c.economy.tradeIncome)}${sl('Mil Upkeep','-'+upkeep,'red')}
-          ${sl('Net/Turn',(c.economy.netIncome>=0?'+':'')+c.economy.netIncome,c.economy.netIncome>=0?'green':'red')}
+          ${sl('Base Income','+'+c.economy.baseIncome)}${sl('State Income','+5')}
+          ${(c.economy.tradeIncome||0)>0?sl('Trade Income','+'+c.economy.tradeIncome,'green'):''}
+          ${sl('Mil Upkeep','-'+upkeep,'red')}
         </div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+          <span style="color:var(--text-dim)">Total/Turn</span>
+          <span style="font-weight:700;color:${(c.economy.netIncome+(c.economy.tradeIncome||0))>=0?'var(--green)':'var(--red)'}">${(c.economy.netIncome+(c.economy.tradeIncome||0))>=0?'+':''}${c.economy.netIncome+(c.economy.tradeIncome||0)}</span>
+        </div>
+        ${(c.completedProjects||[]).length?`<div style="margin-top:8px"><div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Built Projects</div><div style="display:flex;flex-direction:column;gap:2px">${(c.completedProjects||[]).slice(-5).reverse().map(p=>{
+          const fx=[];
+          if(p.effects?.net)    fx.push(`<span style="color:var(--green)">+${p.effects.net}/turn</span>`);
+          if(p.effects?.trade)  fx.push(`<span style="color:var(--green)">+${p.effects.trade} trade</span>`);
+          if(p.effects?.stability) fx.push(`<span style="color:var(--accent)">+${p.effects.stability} stab</span>`);
+          if(p.effects?.prestige)  fx.push(`<span style="color:var(--gold)">+${p.effects.prestige} prestige</span>`);
+          if(p.effects?.pool)   fx.push(`<span style="color:var(--green)">+${p.effects.pool} pool</span>`);
+          return `<div style="font-size:10px;display:flex;justify-content:space-between;gap:4px"><span style="color:var(--text-dim)">T${p.turn} ${p.name}</span><span>${fx.join(' ')}</span></div>`;
+        }).join('')}</div></div>`:''}
       </div>
       <div class="dash-card"><h3>🏛 Stability</h3>
         <div class="big-stat" style="color:${stab.color}">${c.stability} <span class="unit">${stab.label}</span></div>
@@ -1995,6 +2171,13 @@ function renderDashboard(){
           ${rr('Mfg Goods',c.resources.mfgGoods,c.resourceBalance.mfgGoods)}
           ${rr('Services',c.resources.services,c.resourceBalance.services)}
         </table>
+        ${(()=>{
+          const warns=[];
+          if((c.resourceBalance.food||0)<0 && (c.resources.food||0)<10) warns.push(`🍽 Food low (${c.resources.food} units${c.resources.food<5?' — crisis imminent!':''}) — buy on market`);
+          if((c.resourceBalance.water||0)<0 && (c.resources.water||0)<6) warns.push(`💧 Water low (${c.resources.water} units${c.resources.water<3?' — crisis imminent!':''}) — buy on market`);
+          if((c.resourceBalance.mfgGoods||0)<0 && (c.resources.mfgGoods||0)<5) warns.push(`🏭 Mfg Goods low — income penalty risk`);
+          return warns.length?`<div style="margin-top:7px;display:flex;flex-direction:column;gap:3px">${warns.map(w=>`<div style="font-size:10px;color:var(--orange);background:#2a1a00;border:1px solid #f4a26155;border-radius:4px;padding:3px 7px">⚠ ${w}</div>`).join('')}</div>`:'';
+        })()}
       </div>
       <div class="dash-card"><h3>🔬 Technology</h3>
         <div class="big-stat">Tier ${c.tech.tier}</div>
@@ -2034,7 +2217,18 @@ function renderDashboard(){
       ${c.atWar&&c.atWar.length?`<div class="dash-card" style="border-color:var(--red)"><h3 style="color:var(--red)">⚔️ Active Wars</h3>
         ${c.atWar.map(w=>`<div class="mil-row"><span>vs ${w}</span><span class="text-dim">${(GS.wars||[]).find(wr=>wr.status==='active'&&((wr.attacker===id&&wr.defender===w)||(wr.defender===id&&wr.attacker===w)))?.rounds?.length||0} rounds</span></div>`).join('')}
       </div>`:''}
-      ${c.projects.length?`<div class="dash-card"><h3>🏗 Projects</h3>${c.projects.map(p=>`<div class="mil-row"><span>${p.name}</span><span class="text-dim">${p.turnsLeft}t</span></div>`).join('')}</div>`:''}
+      ${c.projects.length?`<div class="dash-card"><h3>🏗 Active Projects</h3>${c.projects.map(p=>{
+        const fx=[];
+        if(p.effects?.net)       fx.push(`<span style="color:var(--green)">+${p.effects.net}/turn</span>`);
+        if(p.effects?.trade)     fx.push(`<span style="color:var(--green)">+${p.effects.trade} trade</span>`);
+        if(p.effects?.stability) fx.push(`<span style="color:var(--accent)">+${p.effects.stability} stab</span>`);
+        if(p.effects?.prestige)  fx.push(`<span style="color:var(--gold)">+${p.effects.prestige} pres</span>`);
+        if(p.effects?.pool)      fx.push(`<span style="color:var(--green)">+${p.effects.pool} pool</span>`);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+          <div><div style="font-weight:600">${p.name}</div><div style="font-size:10px;color:var(--text-dim);margin-top:1px">${fx.join(' · ')||'No bonus effects'}</div></div>
+          <span style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;color:var(--orange);white-space:nowrap">${p.turnsLeft}t left</span>
+        </div>`;
+      }).join('')}</div>`:''}
     </div>
   `;
 }
@@ -2182,31 +2376,56 @@ function deleteRoom(){
     .catch(e => toast('Delete failed: ' + e.message, 'error'));
 }
 
-// ── Offline AI: generate safe steady-state action for a player who is away ──
+// ── Offline AI: generate and immediately submit a smart action for an absent player ──
 function generateOfflineAIAction(id, c){
+  if(!c) return;
   const sp = c.stockpile || {constructionMats:0, critMinerals:0, energy:0};
-  // Safe project actions — no war, no aggression
+  const pool = c.economy.pool || 0;
+
+  // Build pools of affordable actions
   const safeProjects = ACTION_COSTS.projects.filter(a =>
-    c.economy.pool >= a.eco &&
+    pool >= a.eco &&
     (sp.constructionMats||0) >= (a.mat||0) &&
     (sp.critMinerals||0) >= (a.min||0) &&
     (sp.energy||0) >= (a.egy||0)
   );
-  // Safe military: only buy battalions (defensive), no deployment against players
+  // Fix: correct action id is 'train_bat', not 'battalion'
   const safeMilitary = ACTION_COSTS.military.filter(a =>
-    a.id === 'battalion' && c.economy.pool >= a.eco
+    a.id === 'train_bat' && pool >= a.eco
   );
+  const safeDiplo = ACTION_COSTS.diplomacy.filter(a =>
+    a.id === 'trade_deal' && pool >= a.eco
+  );
+
+  // Priority: prefer variety — rotate based on turn parity to avoid doing the same thing forever
+  const turn = GS?.turn || 0;
   let chosen = null, chosenCat = '';
-  if(safeProjects.length){
-    // Prefer eco_reform or minor_proj for steady growth
-    chosen = safeProjects.find(a=>a.id==='eco_reform') || safeProjects.find(a=>a.id==='minor_proj') || safeProjects[0];
-    chosenCat = 'projects';
+
+  if(turn % 3 === 0 && safeMilitary.length){
+    // Every 3rd turn: train battalions (defensive build-up)
+    chosen = safeMilitary[0]; chosenCat = 'military';
+  } else if(safeProjects.length){
+    // Most turns: rotate between eco reform and infra
+    const projectPicks = safeProjects.filter(a => ['eco_reform','infra','minor_proj','urban_drive'].includes(a.id));
+    const pick = projectPicks.length ? projectPicks[turn % projectPicks.length] : safeProjects[0];
+    chosen = pick; chosenCat = 'projects';
   } else if(safeMilitary.length){
-    chosen = safeMilitary[0];
-    chosenCat = 'military';
+    chosen = safeMilitary[0]; chosenCat = 'military';
+  } else if(safeDiplo.length){
+    chosen = safeDiplo[0]; chosenCat = 'diplomacy';
   }
-  if(chosen){ c.actions = [{ category:chosenCat, actionId:chosen.id, note:'Steady state — player offline.', warTarget:'' },{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''}]; }
-  else { c.actions = [{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''}]; }
+
+  const note = chosen?.type === 'Major'
+    ? `AI-managed steady state action for ${id}. Maintaining national stability and economic growth while player is away.`
+    : (chosen?.type === 'Minor' ? `AI maintenance action for ${id}.` : '');
+
+  c.actions = chosen
+    ? [{ category:chosenCat, actionId:chosen.id, note, warTarget:'' },
+       {category:'',actionId:'',note:'',warTarget:''},
+       {category:'',actionId:'',note:'',warTarget:''}]
+    : [{category:'',actionId:'',note:'',warTarget:''},
+       {category:'',actionId:'',note:'',warTarget:''},
+       {category:'',actionId:'',note:'',warTarget:''}];
   c.submitted = true;
 }
 
@@ -2217,8 +2436,18 @@ function toggleOfflineAI(id){
   if(!slot) return;
   const nowAI = !slot.offlineAI;
   GS.slots[id].offlineAI = nowAI;
+  // If enabling AI during collecting phase, immediately generate & submit their action
+  if(nowAI && GS.phase === 'collecting'){
+    const c = GS.countries[id];
+    if(c && !c.submitted) generateOfflineAIAction(id, c);
+  }
+  // If disabling AI, clear the auto-submitted action so the player starts fresh
+  if(!nowAI){
+    const c = GS.countries[id];
+    if(c){ c.submitted = false; c.actions = [{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''},{category:'',actionId:'',note:'',warTarget:''}]; }
+  }
   pushState();
-  toast(nowAI ? `🤖 ${id} is now AI-controlled (offline mode)` : `👤 ${id} returned to player control`, nowAI ? 'info' : 'success');
+  toast(nowAI ? `🤖 ${id} is now AI-controlled — action auto-submitted` : `👤 ${id} returned to player control`, nowAI ? 'info' : 'success');
   renderGmConsole();
 }
 
@@ -2230,33 +2459,93 @@ function processTurn(){
   Object.entries(GS.countries).forEach(([id,c])=>{
     if(GS.slots[id]?.offlineAI && !c.submitted) generateOfflineAIAction(id, c);
   });
+  // Snapshot pre-turn stats for turn results summary
+  const _preSnap = {};
+  Object.entries(GS.countries).forEach(([id,c])=>{
+    _preSnap[id]={pool:c.economy.pool, stab:c.stability, pres:c.prestige,
+      net:c.economy.netIncome, trade:c.economy.tradeIncome||0,
+      projNames:(c.projects||[]).map(p=>p.name)};
+  });
   Object.entries(GS.countries).forEach(([id,c])=>{
     entry.actions[id]=c.actions.map(a=>({...a}));
     // Apply action effects
     c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
-    // Replenish stockpiles
+    // Replenish stockpiles — base rate + bonus from market resource stocks
+    // This makes buying minerals/construction on the market directly useful:
+    // excess minerals → extra critMinerals stockpile; excess construction → extra constructionMats
     if(c.stockpile && c.stockpileRate){
-      c.stockpile.constructionMats = Math.min(30, (c.stockpile.constructionMats||0) + c.stockpileRate.constructionMats);
-      c.stockpile.critMinerals     = Math.min(20, (c.stockpile.critMinerals||0)     + c.stockpileRate.critMinerals);
-      c.stockpile.energy           = Math.min(25, (c.stockpile.energy||0)           + c.stockpileRate.energy);
+      const constStock = c.resources?.construction || 0;
+      const minStock   = c.resources?.minerals     || 0;
+      const energyBal  = c.resourceBalance?.energy || 0;
+      // Bonus: every 10 construction resources above threshold → +1 constructionMats/turn
+      const constBonus = Math.min(3, Math.floor(Math.max(0, constStock - 5) / 10));
+      // Bonus: every 10 minerals above threshold → +1 critMinerals/turn
+      const minBonus   = Math.min(2, Math.floor(Math.max(0, minStock - 5)  / 10));
+      // Consume the resources used for bonus conversion (1 resource → 0.5 stockpile, rounded)
+      if(constBonus > 0) c.resources.construction = Math.max(0, constStock - constBonus * 2);
+      if(minBonus   > 0) c.resources.minerals      = Math.max(0, minStock   - minBonus * 2);
+
+      c.stockpile.constructionMats = Math.min(30, (c.stockpile.constructionMats||0) + c.stockpileRate.constructionMats + constBonus);
+      c.stockpile.critMinerals     = Math.min(20, (c.stockpile.critMinerals||0)     + c.stockpileRate.critMinerals     + minBonus);
+      // Energy stockpile also benefits from positive energy balance
+      const energyBonus = energyBal > 0 ? Math.min(2, energyBal) : 0;
+      c.stockpile.energy           = Math.min(25, (c.stockpile.energy||0)           + c.stockpileRate.energy + energyBonus);
     }
-    c.economy.pool = Math.max(0, c.economy.pool + c.economy.netIncome);
-    // ── Resource deficit impacts ──
+    // ── Recalculate military upkeep dynamically so building units actually costs income ──
+    { const mil = c.military;
+      const newUpkeep = (mil.battalions||0)*1 + (mil.mechDivisions||0)*2 + (mil.fleets||0)*2 +
+                        (mil.carrierGroups||0)*5 + (mil.airWings||0)*1 + (mil.bomberWings||0)*4;
+      c.economy.militaryUpkeep = newUpkeep;
+      // netIncome = baseIncome + stateIncome - upkeep (tradeIncome applied separately below)
+      c.economy.netIncome = Math.max(-50, (c.economy.baseIncome||0) + (c.economy.stateIncome||5) - newUpkeep);
+    }
+    c.economy.pool = Math.max(0, c.economy.pool + c.economy.netIncome + (c.economy.tradeIncome||0));
+    // ── Resource deficit impacts — based on STOCK level, not just balance ──
+    // Negative balance drains stocks; penalties only kick in when stocks are actually low.
+    const foodStock = c.resources?.food  || 0;
+    const waterStock = c.resources?.water || 0;
     const foodBal  = c.resourceBalance?.food  || 0;
     const waterBal = c.resourceBalance?.water || 0;
-    if(foodBal <= -3){
-      c.stability = Math.max(0, (c.stability||60) - 3);
-      if(!GS.newsBoard) GS.newsBoard=[];
-      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`🍽 ${id}: Food Crisis`,body:`Severe food shortages are causing civil unrest. Stability -3.`});
-    } else if(foodBal < 0){
-      c.stability = Math.max(0, (c.stability||60) - 1);
+    const foodCrisis  = foodBal  < 0 && foodStock  < 5;
+    const waterCrisis = waterBal < 0 && waterStock < 3;
+    if(foodCrisis){
+      const drain = foodStock === 0 ? 4 : foodBal <= -3 ? 3 : 1;
+      c.stability = Math.max(0, (c.stability||60) - drain);
+      if(foodStock === 0 || GS.turn % 3 === 0){ // don't flood newsboard — max every 3 turns
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',
+          title:`🍽 ${id}: Food ${foodStock===0?'Shortage':'Running Low'}`,
+          body:`${id}'s food supply is ${foodStock===0?'depleted':'critically low'} (${foodStock} units). Civil unrest is rising. Consider trading for food on the market. Stability -${drain}.`});
+      }
     }
-    if(waterBal <= -2){
-      c.stability = Math.max(0, (c.stability||60) - 2);
-      if(!GS.newsBoard) GS.newsBoard=[];
-      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💧 ${id}: Water Shortage`,body:`Water scarcity is straining infrastructure and public health. Stability -2.`});
-    } else if(waterBal < 0){
-      c.stability = Math.max(0, (c.stability||60) - 1);
+    if(waterCrisis){
+      const drain = waterStock === 0 ? 3 : 2;
+      c.stability = Math.max(0, (c.stability||60) - drain);
+      if(waterStock === 0 || GS.turn % 3 === 0){
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',
+          title:`💧 ${id}: Water ${waterStock===0?'Shortage':'Running Low'}`,
+          body:`${id}'s water supply is ${waterStock===0?'depleted':'critically low'} (${waterStock} units). Infrastructure and public health deteriorating. Stability -${drain}.`});
+      }
+    }
+    // Mfg goods shortage: income penalty when stocks run low
+    const mfgStock = c.resources?.mfgGoods || 0;
+    const mfgBal   = c.resourceBalance?.mfgGoods || 0;
+    if(mfgBal < 0 && mfgStock < 3){
+      c.economy.pool = Math.max(0, (c.economy.pool||0) - 1);
+    }
+    // ── Morale system ──
+    { let morDelta = 0;
+      if(foodCrisis)  morDelta -= foodStock === 0 ? 6 : 3;
+      if(waterCrisis) morDelta -= waterStock === 0 ? 5 : 2;
+      if((c.stability||60) < 30) morDelta -= 3;
+      else if((c.stability||60) < 50) morDelta -= 1;
+      else if((c.stability||60) >= 80) morDelta += 1;
+      c.morale = Math.min(100, Math.max(0, (c.morale??100) + morDelta));
+      if(c.morale === 0 && morDelta < 0){
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💀 ${id}: National Collapse`,body:`${id}'s morale has hit zero. The government has lost all legitimacy — the nation is in total collapse.`});
+      }
     }
     c.tech.points += c.tech.researchIncome;
     if(c.tech.researching&&c.tech.turnsLeft>0){
@@ -2272,6 +2561,8 @@ function processTurn(){
     c.projects.forEach(p=>{ if(p.turnsLeft>0) p.turnsLeft--; });
     c.projects.filter(p=>p.turnsLeft<=0).forEach(p=>{
       applyEffects(c,p.effects);
+      if(!c.completedProjects) c.completedProjects=[];
+      c.completedProjects.push({name:p.name, turn:GS.turn, effects:p.effects});
       if(!GS.newsBoard) GS.newsBoard=[];
       GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'politics',title:`🏗 ${id}: Project Complete`,body:`${id} has completed: ${p.name}. Effects are now taking hold across the nation.`});
     });
@@ -2294,6 +2585,22 @@ function processTurn(){
   applyCrossContAlliances();
   checkObjectiveCompletion();
   Object.values(GS.countries).forEach(c=>{ if(c.espionage) c.espionage.opsThisTurn=0; });
+  // Build turn results summary for each player
+  GS.turnResults = {};
+  Object.entries(GS.countries).forEach(([id,c])=>{
+    const s = _preSnap[id]; if(!s) return;
+    const projDone = (c.completedProjects||[]).filter(p=>p.turn===GS.turn);
+    GS.turnResults[id] = {
+      turn: GS.turn,
+      pool: c.economy.pool, poolDelta: c.economy.pool - s.pool,
+      stabDelta: c.stability - s.stab,
+      presDelta: c.prestige - s.pres,
+      netIncome: c.economy.netIncome, netDelta: c.economy.netIncome - s.net,
+      trade: c.economy.tradeIncome||0, tradeDelta: (c.economy.tradeIncome||0) - s.trade,
+      projectsDone: projDone.map(p=>({name:p.name, effects:p.effects})),
+      seen: false,
+    };
+  });
   GS.turnLog.unshift(entry);
   GS.turn++; GS.phase='collecting';
   generateTurnEvents(GS.turn);
@@ -3087,18 +3394,62 @@ function aiProcessTurn(){
     Object.entries(GS.countries).forEach(([id,c])=>{
       if(GS.slots[id]?.offlineAI && !c.submitted) generateOfflineAIAction(id, c);
     });
+    // Snapshot pre-turn stats for turn results summary
+    const _preSnap2 = {};
+    Object.entries(GS.countries).forEach(([id,c])=>{
+      _preSnap2[id]={pool:c.economy.pool,stab:c.stability,pres:c.prestige,
+        net:c.economy.netIncome,trade:c.economy.tradeIncome||0};
+    });
     Object.entries(GS.countries).forEach(([id, c]) => {
       entry.actions[id] = c.actions.map(a=>({...a}));
       // Apply structured action effects
       c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
-      // Replenish stockpiles
+      // Replenish stockpiles — base rate + bonus from market resource stocks
       if(c.stockpile && c.stockpileRate){
-        c.stockpile.constructionMats = Math.min(30, (c.stockpile.constructionMats||0) + c.stockpileRate.constructionMats);
-        c.stockpile.critMinerals     = Math.min(20, (c.stockpile.critMinerals||0)     + c.stockpileRate.critMinerals);
-        c.stockpile.energy           = Math.min(25, (c.stockpile.energy||0)           + c.stockpileRate.energy);
+        const constStock = c.resources?.construction || 0;
+        const minStock   = c.resources?.minerals     || 0;
+        const energyBal  = c.resourceBalance?.energy || 0;
+        const constBonus = Math.min(3, Math.floor(Math.max(0, constStock - 5) / 10));
+        const minBonus   = Math.min(2, Math.floor(Math.max(0, minStock - 5)  / 10));
+        if(constBonus > 0) c.resources.construction = Math.max(0, constStock - constBonus * 2);
+        if(minBonus   > 0) c.resources.minerals      = Math.max(0, minStock   - minBonus * 2);
+        const energyBonus = energyBal > 0 ? Math.min(2, energyBal) : 0;
+        c.stockpile.constructionMats = Math.min(30, (c.stockpile.constructionMats||0) + c.stockpileRate.constructionMats + constBonus);
+        c.stockpile.critMinerals     = Math.min(20, (c.stockpile.critMinerals||0)     + c.stockpileRate.critMinerals     + minBonus);
+        c.stockpile.energy           = Math.min(25, (c.stockpile.energy||0)           + c.stockpileRate.energy           + energyBonus);
+      }
+      // ── Recalculate military upkeep dynamically ──
+      { const mil = c.military;
+        const newUpkeep = (mil.battalions||0)*1 + (mil.mechDivisions||0)*2 + (mil.fleets||0)*2 +
+                          (mil.carrierGroups||0)*5 + (mil.airWings||0)*1 + (mil.bomberWings||0)*4;
+        c.economy.militaryUpkeep = newUpkeep;
+        c.economy.netIncome = Math.max(-50, (c.economy.baseIncome||0) + (c.economy.stateIncome||5) - newUpkeep);
       }
       // Apply income & tech
-      c.economy.pool = Math.max(0, c.economy.pool + c.economy.netIncome);
+      c.economy.pool = Math.max(0, c.economy.pool + c.economy.netIncome + (c.economy.tradeIncome||0));
+      // ── Resource deficit + morale impacts — stock-based, not balance-based ──
+      { const foodStock=c.resources?.food||0, waterStock=c.resources?.water||0;
+        const foodBal=c.resourceBalance?.food||0, waterBal=c.resourceBalance?.water||0;
+        const foodCrisis=foodBal<0&&foodStock<5, waterCrisis=waterBal<0&&waterStock<3;
+        if(foodCrisis){
+          const drain=foodStock===0?4:foodBal<=-3?3:1;
+          c.stability=Math.max(0,(c.stability||60)-drain);
+          if(foodStock===0||GS.turn%3===0) GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`🍽 ${id}: Food ${foodStock===0?'Shortage':'Running Low'}`,body:`${id}'s food supply is ${foodStock===0?'depleted':'critically low'} (${foodStock} units). Civil unrest rising. Stability -${drain}.`});
+        }
+        if(waterCrisis){
+          const drain=waterStock===0?3:2;
+          c.stability=Math.max(0,(c.stability||60)-drain);
+          if(waterStock===0||GS.turn%3===0) GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💧 ${id}: Water ${waterStock===0?'Shortage':'Running Low'}`,body:`${id}'s water supply is ${waterStock===0?'depleted':'critically low'} (${waterStock} units). Stability -${drain}.`});
+        }
+        const mfgStock=c.resources?.mfgGoods||0, mfgBal=c.resourceBalance?.mfgGoods||0;
+        if(mfgBal<0&&mfgStock<3) c.economy.pool=Math.max(0,(c.economy.pool||0)-1);
+        let morDelta = 0;
+        if(foodCrisis) morDelta -= foodStock===0?6:3;
+        if(waterCrisis) morDelta -= waterStock===0?5:2;
+        if((c.stability||60) < 30) morDelta -= 3; else if((c.stability||60) < 50) morDelta -= 1; else if((c.stability||60) >= 80) morDelta += 1;
+        c.morale = Math.min(100, Math.max(0, (c.morale??100) + morDelta));
+        if(c.morale === 0 && morDelta < 0) GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💀 ${id}: National Collapse`,body:`${id}'s morale has hit zero. The nation is in total collapse.`});
+      }
       c.tech.points += c.tech.researchIncome;
       if(c.tech.researching && c.tech.turnsLeft > 0){
         c.tech.turnsLeft--;
@@ -3113,6 +3464,8 @@ function aiProcessTurn(){
       c.projects.forEach(p => { if(p.turnsLeft > 0) p.turnsLeft--; });
       c.projects.filter(p => p.turnsLeft <= 0).forEach(p => {
         applyEffects(c, p.effects);
+        if(!c.completedProjects) c.completedProjects=[];
+        c.completedProjects.push({name:p.name, turn:GS.turn, effects:p.effects});
         if(!GS.newsBoard) GS.newsBoard=[];
         GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'politics',title:`🏗 ${id}: Project Complete`,body:`${id} has completed: ${p.name}. Effects are now taking hold across the nation.`});
       });
@@ -3136,6 +3489,22 @@ function aiProcessTurn(){
     applyCrossContAlliances();
     checkObjectiveCompletion();
     Object.values(GS.countries).forEach(c=>{ if(c.espionage) c.espionage.opsThisTurn=0; });
+    // Build turn results summary
+    GS.turnResults = {};
+    Object.entries(GS.countries).forEach(([id,c])=>{
+      const s = _preSnap2[id]; if(!s) return;
+      const projDone = (c.completedProjects||[]).filter(p=>p.turn===GS.turn);
+      GS.turnResults[id] = {
+        turn: GS.turn,
+        pool: c.economy.pool, poolDelta: c.economy.pool - s.pool,
+        stabDelta: c.stability - s.stab,
+        presDelta: c.prestige - s.pres,
+        netIncome: c.economy.netIncome, netDelta: c.economy.netIncome - s.net,
+        trade: c.economy.tradeIncome||0, tradeDelta: (c.economy.tradeIncome||0) - s.trade,
+        projectsDone: projDone.map(p=>({name:p.name, effects:p.effects})),
+        seen: false,
+      };
+    });
     GS.turnLog.unshift(entry);
     GS.turn++;
     GS.phase = 'collecting';
@@ -3527,14 +3896,23 @@ function assignObjective(id, tier){
   return obj;
 }
 
-function showObjectivesPopup(id){
-  if(!GS.slots[id]) return;
+function showObjectivesPopup(id, force){
+  if(!GS || !GS.slots[id]) return;
   let obj = GS.slots[id].currentObjective;
+  const isNew = !obj;
   if(!obj){
     obj = assignObjective(id, 0);
     if(!obj) return;
+    GS.slots[id].seenObjective = null; // new objective — will be shown
     pushState();
   }
+  // Don't auto-show on login if already seen this objective (unless forced by button click)
+  if(!force && GS.slots[id].seenObjective === obj.id) return;
+
+  // Mark as seen so it won't re-appear on next login
+  GS.slots[id].seenObjective = obj.id;
+  if(!isNew) pushState(); // only push if we didn't already push above
+
   const popup = document.getElementById('objPopup');
   const content = document.getElementById('objPopupContent');
   const completed = GS.slots[id].completedObjectives || [];
@@ -3565,6 +3943,7 @@ function checkObjectiveCompletion(){
       if(!slot.completedObjectives) slot.completedObjectives = [];
       slot.completedObjectives.push({id:obj.id, completedTurn:GS.turn});
       slot.currentObjective = null;
+      slot.seenObjective = null; // clear so new objective popup shows
       const nextTier = Math.min(obj.tier+1, 2);
       assignObjective(id, nextTier);
       if(session.country === id) toast(`🎯 Objective complete! ${obj.reward}`, 'success');
@@ -4143,6 +4522,155 @@ function applyCrossContAlliances(){
 }
 
 // ══════════════════════════════════════════════════════════════
+//  RELATIONS TAB
+// ══════════════════════════════════════════════════════════════
+function renderRelationsTab(){
+  const el = document.getElementById('relationsContent');
+  if(!el) return;
+  if(!GS){ el.innerHTML='<p style="color:var(--text-dim);padding:20px">No game loaded.</p>'; return; }
+
+  const myId = session?.country;
+  const isPlayer = myId && myId !== 'gm' && session.role !== 'spectator';
+  const myC = isPlayer ? GS.countries?.[myId] : null;
+
+  // ── Player-to-player relations ──────────────────────────────
+  const playerIds = Object.keys(PLAYER_META);
+  let playerSection = '';
+  if(playerIds.length > 1){
+    const rows = playerIds.map(pid => {
+      if(!isPlayer || pid === myId){
+        // show other players' public stances toward everyone
+        if(pid === myId) return '';
+        const m = PLAYER_META[pid];
+        const c = GS.countries?.[pid];
+        const allies = c?.diplomacy?.allies||[];
+        const rivals = c?.diplomacy?.rivals||[];
+        const isAlly = allies.includes(myId);
+        const isRival = rivals.includes(myId);
+        const stance = c?.publicStance?.[myId];
+        const stanceLabel = stance==='ally'?'<span class="badge ally">🤝 Allied</span>':
+                            stance==='rival'?'<span class="badge rival">⚔️ Rival</span>':'';
+        return `<div class="rel-player-row">
+          <span class="rel-flag">${m.flag}</span>
+          <div class="rel-name">${pid}<span style="font-size:10px;color:var(--text-dim);margin-left:6px">${m.player||''}</span></div>
+          ${isAlly?'<span class="badge ally" style="font-size:10px">🤝 Formal Ally</span>':isRival?'<span class="badge rival" style="font-size:10px">⚔️ Rival</span>':''}
+          ${stanceLabel}
+        </div>`;
+      }
+      // My row — show controls for setting stance toward others
+      const m = PLAYER_META[pid];
+      const myAlly = (myC?.diplomacy?.allies||[]).includes(pid);
+      const myRival = (myC?.diplomacy?.rivals||[]).includes(pid);
+      const pubStance = myC?.publicStance?.[pid] || 'neutral';
+      const theirPubStance = GS.countries?.[pid]?.publicStance?.[myId];
+      const theirLabel = theirPubStance==='ally'?'<span class="badge ally" style="font-size:9px;margin-left:4px">🤝 They say ally</span>':
+                         theirPubStance==='rival'?'<span class="badge rival" style="font-size:9px;margin-left:4px">⚔️ They say rival</span>':'';
+      const formalLabel = myAlly?'<span class="badge ally" style="font-size:9px">🤝 Formal</span>':
+                          myRival?'<span class="badge rival" style="font-size:9px">⚔️ Rival</span>':'';
+      return `<div class="rel-player-row">
+        <span class="rel-flag">${m.flag}</span>
+        <div class="rel-name" style="flex:1">${pid}<span style="font-size:10px;color:var(--text-dim);margin-left:6px">${m.player||''}</span>${theirLabel}</div>
+        ${formalLabel}
+        <div class="rel-stance-btns">
+          <button class="rel-stance-btn ${pubStance==='ally'?'active-ally':''}" onclick="setPublicStance('${pid}','ally')" title="Declare this country your ally publicly">🤝 Ally</button>
+          <button class="rel-stance-btn" onclick="setPublicStance('${pid}','neutral')" style="${pubStance==='neutral'?'border-color:var(--text-dim);color:var(--text)':''}" title="Neutral stance">— Neutral</button>
+          <button class="rel-stance-btn ${pubStance==='rival'?'active-rival':''}" onclick="setPublicStance('${pid}','rival')" title="Declare this country your rival publicly">⚔️ Rival</button>
+        </div>
+      </div>`;
+    }).filter(Boolean).join('');
+
+    // Read-only stance overview for spectators/GM
+    const spectatorRows = !isPlayer ? playerIds.map(pid=>{
+      const m = PLAYER_META[pid];
+      const c = GS.countries?.[pid];
+      const stances = c?.publicStance || {};
+      const badges = Object.entries(stances).map(([tid,s])=>
+        s==='ally'?`<span class="badge ally" style="font-size:9px">🤝 ${tid}</span>`:
+        s==='rival'?`<span class="badge rival" style="font-size:9px">⚔️ ${tid}</span>`:''
+      ).filter(Boolean).join('');
+      return `<div class="rel-player-row">
+        <span class="rel-flag">${m.flag}</span>
+        <div class="rel-name">${pid} <span style="color:var(--text-dim);font-size:10px">${m.player||''}</span></div>
+        <div class="badge-row">${badges||'<span style="font-size:10px;color:var(--text-dim)">No public stances</span>'}</div>
+      </div>`;
+    }).join('') : '';
+
+    playerSection = `<div class="rel-section">
+      <h3>👥 Player Relations</h3>
+      ${isPlayer
+        ? `<p style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Set your <strong style="color:var(--text)">public stance</strong> toward other players — everyone can see it. Formal alliances/rivalries come from diplomacy proposals.</p>${rows}`
+        : spectatorRows || `<p style="font-size:11px;color:var(--text-dim)">No players yet.</p>`}
+    </div>`;
+  }
+
+  // ── NPC relations ───────────────────────────────────────────
+  const npcCards = Object.entries(NPC_DATA).map(([iso, npc]) => {
+    const score = isPlayer
+      ? ((GS.npcRelations?.[iso]?.[myId]) ?? npc.rel[myId] ?? 0)
+      : 0;
+    const rl = relLabel(score);
+    const pool = myC?.economy?.pool || 0;
+    const canImprove = isPlayer && score < 90 && pool >= 5;
+    const barW = Math.abs(score);
+    return `<div class="rel-npc-card">
+      <div class="rel-npc-header">
+        <span style="font-size:18px">${npc.flag}</span>
+        <span class="rel-npc-name">${npc.name}</span>
+        <span style="font-size:10px;font-weight:700;color:${rl.color}">${isPlayer?rl.label:'—'}</span>
+      </div>
+      ${isPlayer?`<div class="rel-bar-wrap">
+        <div class="rel-bar-bg"><div class="rel-bar-fill" style="width:${barW}%;background:${rl.color}"></div></div>
+        <span class="rel-score" style="color:${rl.color}">${score>0?'+':''}${score}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <span style="font-size:10px;color:var(--text-dim)">${npc.note||''}</span>
+        ${canImprove?`<button class="btn" style="font-size:9px;padding:2px 7px;white-space:nowrap" onclick="improveNpcRelations('${iso}');renderRelationsTab()">+10 (5💰)</button>`:''}
+      </div>`:'<p style="font-size:10px;color:var(--text-dim)">Login as a player to see your relations.</p>'}
+    </div>`;
+  }).join('');
+
+  // ── Alliance summary ────────────────────────────────────────
+  let summarySection = '';
+  if(isPlayer && myC){
+    const allies = myC.diplomacy?.allies||[];
+    const rivals = myC.diplomacy?.rivals||[];
+    const agreements = myC.diplomacy?.agreements||[];
+    summarySection = `<div class="rel-section">
+      <h3>📋 My Formal Arrangements</h3>
+      ${allies.length?`<div style="margin-bottom:8px"><div class="section-title">Alliances (−20% market)</div><div class="badge-row">${allies.map(a=>`<span class="badge ally">🤝 ${a}</span>`).join('')}</div></div>`:''}
+      ${rivals.length?`<div style="margin-bottom:8px"><div class="section-title">Rivals (+20% market)</div><div class="badge-row">${rivals.map(r=>`<span class="badge rival">⚔️ ${r}</span>`).join('')}</div></div>`:''}
+      ${agreements.length?`<div style="margin-bottom:8px"><div class="section-title">Trade Agreements (−10% market)</div><div class="badge-row">${agreements.map(a=>`<span class="badge deal">📋 ${a}</span>`).join('')}</div></div>`:''}
+      ${!allies.length&&!rivals.length&&!agreements.length?'<p style="font-size:11px;color:var(--text-dim)">No formal arrangements yet. Use Diplomacy proposals to form alliances.</p>':''}
+      <div style="margin-top:10px;font-size:10px;color:var(--text-dim)">💰 Eco pool: <strong style="color:var(--gold)">${myC.economy?.pool||0}</strong> · Use it to improve NPC relations below.</div>
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${summarySection}
+      ${playerSection}
+      <div class="rel-section">
+        <h3>🌐 NPC Relations${isPlayer?` — ${myId}`:'  (login as a player to view yours)'}</h3>
+        <div class="rel-npc-grid">${npcCards}</div>
+      </div>
+    </div>`;
+}
+
+function setPublicStance(targetId, stance){
+  if(!GS || !session?.country || session.country==='gm') return;
+  const myId = session.country;
+  const c = GS.countries?.[myId];
+  if(!c) return;
+  if(!c.publicStance) c.publicStance = {};
+  if(stance === 'neutral') delete c.publicStance[targetId];
+  else c.publicStance[targetId] = stance;
+  pushState();
+  renderRelationsTab();
+  const label = stance==='ally'?'allied with':'rivalling';
+  toast(`You are now publicly ${label} ${targetId}`,'success');
+}
+
+// ══════════════════════════════════════════════════════════════
 //  MARKET / TRADE SYSTEM
 // ══════════════════════════════════════════════════════════════
 function renderMarketTab(){
@@ -4381,23 +4909,44 @@ function registerDiplomacyAction(id, c, act){
 
   if(actionId === 'trade_deal'){
     if(targetC){
-      if(!c.diplomacy.agreements.includes(targetId))      c.diplomacy.agreements.push(targetId);
-      if(!targetC.diplomacy.agreements.includes(id))      targetC.diplomacy.agreements.push(id);
+      // Player-to-player: create a pending proposal instead of applying immediately
+      if(!GS.diplomacyProposals) GS.diplomacyProposals=[];
+      const already = GS.diplomacyProposals.some(p=>p.type==='trade_deal'&&p.from===id&&p.to===targetId);
+      const alreadyDone = c.diplomacy.agreements.includes(targetId);
+      if(!already && !alreadyDone){
+        GS.diplomacyProposals.push({id:'prop_'+Date.now().toString(36),type:'trade_deal',from:id,to:targetId,turn:GS.turn});
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+          title:`📋 Trade Deal Proposed: ${id} → ${targetId}`,
+          body:`${id} has proposed a Free Trade Agreement with ${targetId}. ${targetId} must accept or reject in their Diplomacy tab.`});
+      }
+    } else {
+      if(!GS.newsBoard) GS.newsBoard=[];
+      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+        title:`📋 Trade Agreement: ${id} ↔ ${targetId} (NPC)`,
+        body:`${id} has signed a Free Trade Agreement with ${targetId}. The GM will adjudicate trade benefits with this NPC nation.`});
     }
-    if(!GS.newsBoard) GS.newsBoard=[];
-    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
-      title:`📋 Trade Agreement: ${id} ↔ ${targetId}${!targetC?' (NPC)':''}`,
-      body:`${id} has signed a Free Trade Agreement with ${targetId}. ${targetC?'Both nations will enjoy a 10% discount on mutual market trades.':'The GM will adjudicate trade benefits with this NPC nation.'}`});
   }
   if(actionId === 'alliance'){
-    if(!c.diplomacy.allies.includes(targetId)) c.diplomacy.allies.push(targetId);
-    if(targetC && !targetC.diplomacy.allies.includes(id)) targetC.diplomacy.allies.push(id);
-    c.diplomacy.rivals = (c.diplomacy.rivals||[]).filter(r=>r!==targetId);
-    if(targetC) targetC.diplomacy.rivals = (targetC.diplomacy.rivals||[]).filter(r=>r!==id);
-    if(!GS.newsBoard) GS.newsBoard=[];
-    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
-      title:`🤝 Alliance Formed: ${id} & ${targetId}${!targetC?' (NPC)':''}`,
-      body:`${id} has formalised an alliance with ${targetId}. ${!targetC?'The GM will determine diplomatic benefits with this NPC nation.':'Allies receive a 20% discount on bilateral market trades.'}`});
+    if(targetC){
+      // Player-to-player: create a pending proposal
+      if(!GS.diplomacyProposals) GS.diplomacyProposals=[];
+      const already = GS.diplomacyProposals.some(p=>p.type==='alliance'&&p.from===id&&p.to===targetId);
+      const alreadyDone = c.diplomacy.allies.includes(targetId);
+      if(!already && !alreadyDone){
+        GS.diplomacyProposals.push({id:'prop_'+Date.now().toString(36),type:'alliance',from:id,to:targetId,turn:GS.turn});
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+          title:`🤝 Alliance Proposed: ${id} → ${targetId}`,
+          body:`${id} has proposed a formal alliance with ${targetId}. ${targetId} must accept or reject in their Diplomacy tab.`});
+      }
+    } else {
+      c.diplomacy.rivals = (c.diplomacy.rivals||[]).filter(r=>r!==targetId);
+      if(!GS.newsBoard) GS.newsBoard=[];
+      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+        title:`🤝 Alliance Formed: ${id} & ${targetId} (NPC)`,
+        body:`${id} has formalised an alliance with ${targetId}. The GM will determine diplomatic benefits with this NPC nation.`});
+    }
   }
   if(actionId === 'sanctions'){
     if(targetC){
@@ -4423,6 +4972,70 @@ function registerDiplomacyAction(id, c, act){
       title:`💰 ${id} sends foreign aid to ${targetId}${!targetC?' (NPC)':''}`,
       body:`${id} has provided a foreign aid package to ${targetId}. ${!targetC?'The GM will adjudicate the diplomatic benefits with this NPC nation.':'Relations between the two nations are improving.'}`});
   }
+}
+
+function acceptProposal(propId){
+  if(!GS.diplomacyProposals) return;
+  const idx = GS.diplomacyProposals.findIndex(p=>p.id===propId);
+  if(idx === -1) return;
+  const prop = GS.diplomacyProposals[idx];
+  if(prop.to !== session.country){ toast('Only the recipient can accept this proposal','error'); return; }
+  const fromC = GS.countries[prop.from], toC = GS.countries[prop.to];
+  if(!fromC || !toC) return;
+  if(prop.type === 'alliance'){
+    if(!fromC.diplomacy.allies.includes(prop.to)) fromC.diplomacy.allies.push(prop.to);
+    if(!toC.diplomacy.allies.includes(prop.from)) toC.diplomacy.allies.push(prop.from);
+    fromC.diplomacy.rivals = (fromC.diplomacy.rivals||[]).filter(r=>r!==prop.to);
+    toC.diplomacy.rivals   = (toC.diplomacy.rivals||[]).filter(r=>r!==prop.from);
+    if(!GS.newsBoard) GS.newsBoard=[];
+    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+      title:`🤝 Alliance Confirmed: ${prop.from} & ${prop.to}`,
+      body:`${prop.to} has accepted ${prop.from}'s alliance proposal. Both nations now enjoy a 20% mutual trade discount.`});
+  } else if(prop.type === 'trade_deal'){
+    if(!fromC.diplomacy.agreements.includes(prop.to)) fromC.diplomacy.agreements.push(prop.to);
+    if(!toC.diplomacy.agreements.includes(prop.from)) toC.diplomacy.agreements.push(prop.from);
+    if(!GS.newsBoard) GS.newsBoard=[];
+    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+      title:`📋 Trade Deal Confirmed: ${prop.from} ↔ ${prop.to}`,
+      body:`${prop.to} has accepted ${prop.from}'s Free Trade Agreement. Both nations enjoy a 10% mutual trade discount.`});
+  }
+  GS.diplomacyProposals.splice(idx,1);
+  pushState();
+  renderCountryCard(session.country);
+  toast('Proposal accepted!','success');
+}
+
+function rejectProposal(propId){
+  if(!GS.diplomacyProposals) return;
+  const idx = GS.diplomacyProposals.findIndex(p=>p.id===propId);
+  if(idx === -1) return;
+  const prop = GS.diplomacyProposals[idx];
+  if(prop.to !== session.country && session.country !== 'gm'){ toast('Only the recipient can reject this proposal','error'); return; }
+  if(!GS.newsBoard) GS.newsBoard=[];
+  GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+    title:`❌ Proposal Rejected: ${prop.from} → ${prop.to}`,
+    body:`${prop.to} has rejected ${prop.from}'s ${prop.type==='alliance'?'alliance':'trade deal'} proposal.`});
+  GS.diplomacyProposals.splice(idx,1);
+  pushState();
+  renderCountryCard(session.country);
+  toast('Proposal rejected.','info');
+}
+
+function improveNpcRelations(iso){
+  const id = session.country;
+  if(!id || id==='gm'){ toast('You need a country to do this','error'); return; }
+  const c = GS.countries[id];
+  if(!c){ toast('Country not found','error'); return; }
+  if((c.economy.pool||0) < 5){ toast('Need at least 5 eco to improve relations','error'); return; }
+  if(!GS.npcRelations) GS.npcRelations={};
+  if(!GS.npcRelations[iso]) GS.npcRelations[iso]={};
+  const cur = GS.npcRelations[iso][id] ?? (NPC_DATA[iso]?.rel[id] ?? 0);
+  if(cur >= 90){ toast('Relations already at maximum','info'); return; }
+  c.economy.pool -= 5;
+  GS.npcRelations[iso][id] = Math.min(90, cur + 10);
+  pushState();
+  renderNpcCard(iso);
+  toast(`Relations with ${NPC_DATA[iso]?.name||iso} improved +10`,'success');
 }
 
 function processSanctions(){
@@ -4482,37 +5095,39 @@ function processMarketTurn(){
   });
   GS.market.offers = GS.market.offers.filter(o => (GS.turn - (o.postedTurn||0)) < 3);
 
-  // AI trade behaviour: post surplus, buy deficits
-  Object.entries(GS.countries).forEach(([id, c]) => {
-    const isAI = GS.slots?.[id]?.isAI || !GS.slots?.[id]; // AI or NPC
-    if(!isAI) return;
-    const hasHuman = Object.values(GS.slots||{}).some(s=>!s.isAI);
+  // ── Helper: post a sell offer from any seller (player AI or NPC) ──
+  const postOffer = (sellerId, res, r, balanceVal) => {
+    const alreadyPosted = GS.market.offers.some(o=>o.seller===sellerId&&o.resource===res);
+    if(alreadyPosted) return;
+    if(Math.random() > 0.40) return; // 40% chance per turn
+    const qty = Math.min(3 + Math.floor(Math.random()*4), 8);
+    const price = Math.max(1, Math.round(r.basePrice * (0.80 + Math.random()*0.45)));
+    GS.market.offers.push({
+      id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      seller:sellerId, sellerIsAI:true, resource:res, qty, priceEach:price, postedTurn:GS.turn
+    });
+  };
 
-    // Sell surplus (balance > 1 AND stock > 10)
+  // ── AI player-slot countries: sell surplus, buy deficits ──
+  Object.entries(GS.countries).forEach(([id, c]) => {
+    const isAI = GS.slots?.[id]?.isAI || !GS.slots?.[id];
+    if(!isAI) return;
+
     Object.entries(MARKET_RESOURCES).forEach(([res, r]) => {
       const balance = c.resourceBalance?.[res] || 0;
       const stock   = c.resources?.[res] || 0;
-      const alreadyPosted = GS.market.offers.some(o=>o.seller===id&&o.resource===res);
-      if(balance > 1 && stock > 10 && !alreadyPosted && Math.random() < 0.35){
-        const qty   = Math.min(Math.floor(stock * 0.25) + 1, 8);
-        const price = Math.max(1, Math.round(r.basePrice * (0.8 + Math.random()*0.4)));
-        c.resources[res] -= qty;
-        GS.market.offers.push({
-          id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-          seller:id, sellerIsAI:true, resource:res, qty, priceEach:price, postedTurn:GS.turn
-        });
-      }
+      if(balance > 1 && stock > 10) postOffer(id, res, r, balance);
     });
 
-    // Buy from market when deficit and has eco
-    if(c.economy.pool > 15 && hasHuman){
-      const wantedOffers = GS.market.offers.filter(o =>
+    // Buy cheapest available offer for a deficit resource
+    if(c.economy.pool > 12){
+      const want = GS.market.offers.filter(o =>
         o.seller !== id &&
         (c.resourceBalance?.[o.resource]||0) < 0 &&
-        (o.qty * o.priceEach) <= Math.min(c.economy.pool * 0.35, 30)
+        (o.qty * o.priceEach) <= Math.min(c.economy.pool * 0.30, 25)
       );
-      if(wantedOffers.length){
-        const pick = wantedOffers[Math.floor(Math.random()*wantedOffers.length)];
+      if(want.length){
+        const pick = want.sort((a,b)=>(a.priceEach - b.priceEach))[0];
         const total = pick.qty * pick.priceEach;
         c.economy.pool -= total;
         c.resources[pick.resource] = (c.resources[pick.resource]||0) + pick.qty;
@@ -4522,6 +5137,44 @@ function processMarketTurn(){
           GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
             title:`🤖 ${id} buys ${MARKET_RESOURCES[pick.resource]?.label||pick.resource} from ${pick.seller}`,
             body:`${id} purchased ${pick.qty} units of ${MARKET_RESOURCES[pick.resource]?.label||pick.resource} from ${pick.seller} for ${total} eco.`});
+        }
+        GS.market.offers = GS.market.offers.filter(o=>o.id!==pick.id);
+      }
+    }
+  });
+
+  // ── Major NPC countries (NPC_DATA): post sell offers based on what they export ──
+  // Map NPC sell labels → MARKET_RESOURCES keys
+  const NPC_RES_MAP = {
+    'Food':'food','Energy':'energy','Minerals':'minerals',
+    'Mfg Goods':'mfgGoods','Services':'services','Construction':'construction'
+  };
+  Object.entries(NPC_DATA).forEach(([iso, npc]) => {
+    const npcId = 'NPC_'+iso;
+    // Sell what they export (their "sells" list)
+    npc.sells.forEach(label => {
+      const res = NPC_RES_MAP[label];
+      if(!res || !MARKET_RESOURCES[res]) return;
+      const r = MARKET_RESOURCES[res];
+      postOffer(npcId, res, r, 2);
+    });
+    // Buy from human sellers for things they need (their "buys" list)
+    if(Math.random() < 0.30){
+      const wantRes = npc.buys.map(l=>NPC_RES_MAP[l]).filter(Boolean);
+      const want = GS.market.offers.filter(o =>
+        !o.sellerIsAI &&
+        wantRes.includes(o.resource) &&
+        (o.qty * o.priceEach) <= 30
+      );
+      if(want.length){
+        const pick = want[Math.floor(Math.random()*want.length)];
+        const total = pick.qty * pick.priceEach;
+        const sellerC = GS.countries[pick.seller];
+        if(sellerC){
+          sellerC.economy.pool += total;
+          GS.newsBoard?.unshift({id:Date.now().toString(36)+iso,turn:GS.turn,type:'event',category:'market',
+            title:`🌍 ${npc.name} buys ${MARKET_RESOURCES[pick.resource]?.label} from ${pick.seller}`,
+            body:`${npc.name} purchased ${pick.qty} units of ${MARKET_RESOURCES[pick.resource]?.label} from ${pick.seller} for ${total} eco.`});
         }
         GS.market.offers = GS.market.offers.filter(o=>o.id!==pick.id);
       }
@@ -4551,6 +5204,7 @@ function activateTab(tab){
   if(tab==='intel')     renderIntelTab();
   if(tab==='press')     renderPressTab();
   if(tab==='market')    renderMarketTab();
+  if(tab==='relations') renderRelationsTab();
 }
 
 function setupHeaderForRole(){
@@ -4630,12 +5284,25 @@ function renderMapLegend(){
   el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${_soloMode?'🎮 Solo — ':''}Players</div>${rows}`;
 }
 
+function _updateDiploBadge(){
+  const badge = document.getElementById('diploBadge');
+  if(!badge || !GS || !session?.country || session.country==='gm') return;
+  const incoming = (GS.diplomacyProposals||[]).filter(p=>p.to===session.country).length;
+  if(incoming > 0){
+    badge.textContent = incoming;
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 function updateAllUI(){
   if(!GS) return;
   document.getElementById('turnDisplay').textContent = GS.turn;
   document.getElementById('dateDisplay').textContent = getTurnDate(GS.turn);
   renderMapLegend();
   renderBottomBar();
+  _updateDiploBadge();
   // Auto-advance and auto-process for GM
   if(session.country === 'gm'){
     const playerCount = Object.keys(GS.slots||{}).length;
@@ -4658,6 +5325,7 @@ function updateAllUI(){
   if(activeTab==='intel')     renderIntelTab();
   if(activeTab==='press')     renderPressTab();
   if(activeTab==='market')    renderMarketTab();
+  if(activeTab==='relations') renderRelationsTab();
   // Refresh right panel if a country is selected, else show own country
   const sel = gCountries?.selectAll('.country-path.selected');
   if(sel && !sel.empty()){
@@ -4912,7 +5580,22 @@ function processSoloTurn(){
       c.stockpile.critMinerals    =Math.min(20,(c.stockpile.critMinerals||0)+c.stockpileRate.critMinerals);
       c.stockpile.energy          =Math.min(25,(c.stockpile.energy||0)+c.stockpileRate.energy);
     }
-    c.economy.pool=Math.max(0,c.economy.pool+c.economy.netIncome);
+    c.economy.pool=Math.max(0,c.economy.pool+c.economy.netIncome+(c.economy.tradeIncome||0));
+    // ── Resource deficit + morale impacts — stock-based ──
+    { const foodStock=c.resources?.food||0,waterStock=c.resources?.water||0;
+      const foodBal=c.resourceBalance?.food||0,waterBal=c.resourceBalance?.water||0;
+      const foodCrisis=foodBal<0&&foodStock<5,waterCrisis=waterBal<0&&waterStock<3;
+      if(foodCrisis){const drain=foodStock===0?4:foodBal<=-3?3:1;c.stability=Math.max(0,(c.stability||60)-drain);if(foodStock===0||GS.turn%3===0){if(!GS.newsBoard)GS.newsBoard=[];GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`🍽 ${id}: Food ${foodStock===0?'Shortage':'Running Low'}`,body:`${id}'s food supply is ${foodStock===0?'depleted':'critically low'} (${foodStock} units). Stability -${drain}.`});}}
+      if(waterCrisis){const drain=waterStock===0?3:2;c.stability=Math.max(0,(c.stability||60)-drain);if(waterStock===0||GS.turn%3===0){if(!GS.newsBoard)GS.newsBoard=[];GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💧 ${id}: Water ${waterStock===0?'Shortage':'Running Low'}`,body:`${id}'s water supply is ${waterStock===0?'depleted':'critically low'} (${waterStock} units). Stability -${drain}.`});}}
+      const mfgStock=c.resources?.mfgGoods||0,mfgBal=c.resourceBalance?.mfgGoods||0;
+      if(mfgBal<0&&mfgStock<3)c.economy.pool=Math.max(0,(c.economy.pool||0)-1);
+      let morDelta=0;
+      if(foodCrisis)morDelta-=foodStock===0?6:3;
+      if(waterCrisis)morDelta-=waterStock===0?5:2;
+      if((c.stability||60)<30)morDelta-=3;else if((c.stability||60)<50)morDelta-=1;else if((c.stability||60)>=80)morDelta+=1;
+      c.morale=Math.min(100,Math.max(0,(c.morale??100)+morDelta));
+      if(c.morale===0&&morDelta<0){if(!GS.newsBoard)GS.newsBoard=[];GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'crisis',title:`💀 ${id}: National Collapse`,body:`${id}'s morale has hit zero. The nation is in total collapse.`});}
+    }
     c.tech.points+=c.tech.researchIncome;
     if(c.tech.researching&&c.tech.turnsLeft>0){
       c.tech.turnsLeft--;
@@ -4927,6 +5610,8 @@ function processSoloTurn(){
     c.projects.forEach(p=>{if(p.turnsLeft>0)p.turnsLeft--;});
     c.projects.filter(p=>p.turnsLeft<=0).forEach(p=>{
       applyEffects(c,p.effects);
+      if(!c.completedProjects)c.completedProjects=[];
+      c.completedProjects.push({name:p.name,turn:GS.turn,effects:p.effects});
       if(!GS.newsBoard)GS.newsBoard=[];
       GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'politics',title:`🏗 ${id}: Project Complete`,body:`${id} has completed: ${p.name}. Effects are now taking hold across the nation.`});
     });
