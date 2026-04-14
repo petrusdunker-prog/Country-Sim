@@ -2100,26 +2100,6 @@ function renderNoteModPreview(note, containerId){
 }
 
 // Tooltip showing all available note keywords
-function renderNoteGuide(){
-  const cats = [
-    { cat:'⚡ Energy', ids:['oil_refinery','renewable','nuclear','hydroelectric','coal_plant','oil_extraction'] },
-    { cat:'⛏ Resources', ids:['mining','logging','agriculture','desalination','fisheries'] },
-    { cat:'🏭 Industry', ids:['factory','construction_industry'] },
-    { cat:'🏗 Infrastructure', ids:['roads','service_sector','port','tech_park'] },
-    { cat:'🏥 Welfare', ids:['hospital','housing','education'] },
-  ];
-  return cats.map(({cat,ids}) => {
-    const rows = ids.map(id => {
-      const m = NOTE_MODIFIERS.find(x=>x.id===id); if(!m) return '';
-      return `<tr><td style="padding:2px 6px;font-size:10px;white-space:nowrap">${m.label}</td>
-        <td style="padding:2px 6px;font-size:10px;color:var(--accent)">${Object.entries(m.gain||{}).map(([k,v])=>`+${v} ${k}`).join(', ')}</td>
-        <td style="padding:2px 6px;font-size:10px;color:var(--orange)">${Object.entries(m.cost||{}).map(([k,v])=>`${v} ${k}`).join(', ')}</td>
-        <td style="padding:2px 6px;font-size:10px;color:var(--text-dim);font-style:italic">${m.keywords.slice(0,3).join(', ')}</td></tr>`;
-    }).join('');
-    return `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px">${cat}</div>
-      <table style="width:100%;border-collapse:collapse">${rows}</table></div>`;
-  }).join('');
-}
 
 // Save current slot's note + target from DOM into c.actions before switching
 function saveActSlot(id){
@@ -3715,7 +3695,7 @@ function applyEffects(c, ef){
   if(ef.air)       c.military.airWings      = (c.military.airWings||0)      + ef.air;
   if(ef.bomber)    c.military.bomberWings   = (c.military.bomberWings||0)   + ef.bomber;
   if(ef.nukes)     c.military.nukes = true;
-  if(ef.readiness){ const rl=['Low','Medium','High']; const cur=rl.indexOf(c.military.readiness||'Low'); c.military.readiness=rl[Math.min(2,cur+ef.readiness)]; }
+  if(ef.readiness){ const rl=['Low','Medium','High']; const cur=rl.indexOf(c.military.readiness||'Low'); c.military.readiness=rl[Math.max(0,Math.min(2,cur+ef.readiness))]; }
   if(ef.stability) c.stability             = Math.min(100, (c.stability||60)            + ef.stability);
   if(ef.prestige)  c.prestige              = (c.prestige||0)                            + ef.prestige;
   if(ef.pool)      c.economy.pool          = (c.economy.pool||0)                        + ef.pool;
@@ -5953,9 +5933,22 @@ function processSoloTurn(){
     // Apply note-keyword resource effects
     c.actions.forEach(act=>{ if(act&&act.note) applyNoteEffects(c, act.note, id); });
     if(c.stockpile&&c.stockpileRate){
-      c.stockpile.constructionMats=Math.min(30,(c.stockpile.constructionMats||0)+c.stockpileRate.constructionMats);
-      c.stockpile.critMinerals    =Math.min(20,(c.stockpile.critMinerals||0)+c.stockpileRate.critMinerals);
-      c.stockpile.energy          =Math.min(25,(c.stockpile.energy||0)+c.stockpileRate.energy);
+      const constStock=c.resources?.construction||0, minStock=c.resources?.minerals||0;
+      const energyBal=c.resourceBalance?.energy||0;
+      const constBonus=Math.min(3,Math.floor(Math.max(0,constStock-5)/10));
+      const minBonus  =Math.min(2,Math.floor(Math.max(0,minStock-5)/10));
+      if(constBonus>0) c.resources.construction=Math.max(0,constStock-constBonus*2);
+      if(minBonus>0)   c.resources.minerals     =Math.max(0,minStock-minBonus*2);
+      const energyBonus=energyBal>0?Math.min(2,energyBal):0;
+      c.stockpile.constructionMats=Math.min(30,(c.stockpile.constructionMats||0)+c.stockpileRate.constructionMats+constBonus);
+      c.stockpile.critMinerals    =Math.min(20,(c.stockpile.critMinerals||0)+c.stockpileRate.critMinerals+minBonus);
+      c.stockpile.energy          =Math.min(25,(c.stockpile.energy||0)+c.stockpileRate.energy+energyBonus);
+    }
+    { const mil=c.military;
+      const newUpkeep=(mil.battalions||0)*1+(mil.mechDivisions||0)*2+(mil.fleets||0)*2+
+                      (mil.carrierGroups||0)*5+(mil.airWings||0)*1+(mil.bomberWings||0)*4;
+      c.economy.militaryUpkeep=newUpkeep;
+      c.economy.netIncome=Math.max(-50,(c.economy.baseIncome||0)+(c.economy.stateIncome||5)-newUpkeep);
     }
     c.economy.pool=Math.max(0,c.economy.pool+c.economy.netIncome+(c.economy.tradeIncome||0));
     // ── Resource deficit + morale impacts — stock-based ──
