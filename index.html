@@ -964,7 +964,7 @@ const PROXY_SUPPORT_TYPES = [
 const PLAYABLE_COUNTRIES = {
   // ── NORTH AMERICA ──
   // USA: massive industry/services but energy-hungry, water-stressed in west, food surplus midwest
-  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:2,water:-1,minerals:-1,mfgGoods:2,services:3,energy:-4}},
+  'USA':             {iso2:'us', flag:'🇺🇸',isoNum:'840',continent:'North America',  color:'#4a90d9',pop:335, urb:83,mf:70,eco:50,bat:489,up:49,net:6, bal:{food:2,water:-2,minerals:-3,mfgGoods:1,services:3,energy:-4}},
   // Canada: huge resources/food/energy, but tiny pop = low services/manufacturing
   'Canada':          {iso2:'ca', flag:'🇨🇦',isoNum:'124',continent:'North America',  color:'#c04040',pop:38,  urb:82,mf:82,eco:28,bat:45, up:5, net:7, bal:{food:3,water:4,minerals:4,mfgGoods:-3,services:-2,energy:3}},
   // Mexico: mixed, weak on services, modest energy
@@ -989,9 +989,9 @@ const PLAYABLE_COUNTRIES = {
   'Italy':           {iso2:'it', flag:'🇮🇹',isoNum:'380',continent:'Europe',         color:'#1a9966',pop:60,  urb:72,mf:68,eco:30,bat:95, up:10,net:6, bal:{food:1,water:0,minerals:-1,mfgGoods:2,services:2,energy:-3}},
   'Spain':           {iso2:'es', flag:'🇪🇸',isoNum:'724',continent:'Europe',         color:'#c0392b',pop:47,  urb:81,mf:72,eco:22,bat:70, up:7, net:6, bal:{food:2,water:-1,minerals:0,mfgGoods:0,services:2,energy:-2}},
   'Ukraine':         {iso2:'ua', flag:'🇺🇦',isoNum:'804',continent:'Europe',         color:'#f1c40f',pop:44,  urb:70,mf:55,eco:10,bat:100,up:10,net:4, bal:{food:5,water:2,minerals:2,mfgGoods:-3,services:-3,energy:-1}},
-  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:1,minerals:1,mfgGoods:1,services:0,energy:-2}},
+  'Poland':          {iso2:'pl', flag:'🇵🇱',isoNum:'616',continent:'Europe',         color:'#e05c6b',pop:38,  urb:60,mf:60,eco:16,bat:85, up:9, net:6, bal:{food:2,water:-1,minerals:1,mfgGoods:1,services:-2,energy:-2}},
   'Netherlands':     {iso2:'nl', flag:'🇳🇱',isoNum:'528',continent:'Europe',         color:'#e67e22',pop:18,  urb:93,mf:92,eco:20,bat:28, up:3, net:9, bal:{food:1,water:-1,minerals:-2,mfgGoods:2,services:4,energy:-3}},
-  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:0,water:2,minerals:2,mfgGoods:2,services:2,energy:-4}},
+  'Sweden':          {iso2:'se', flag:'🇸🇪',isoNum:'752',continent:'Europe',         color:'#5499c7',pop:10,  urb:88,mf:95,eco:16,bat:16, up:2, net:9, bal:{food:-2,water:2,minerals:2,mfgGoods:2,services:2,energy:-4}},
   'Norway':          {iso2:'no', flag:'🇳🇴',isoNum:'578',continent:'Europe',         color:'#1f618d',pop:5,   urb:83,mf:97,eco:18,bat:16, up:2, net:9, bal:{food:-3,water:2,minerals:2,mfgGoods:-2,services:1,energy:5}},
   'Turkey':          {iso2:'tr', flag:'🇹🇷',isoNum:'792',continent:'Europe',         color:'#f39c12',pop:85,  urb:77,mf:20,eco:18,bat:200,up:20,net:4, bal:{food:2,water:0,minerals:1,mfgGoods:1,services:-1,energy:-2}},
   'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:-3,water:1,minerals:-2,mfgGoods:2,services:6,energy:-3}},
@@ -1011,7 +1011,7 @@ const PLAYABLE_COUNTRIES = {
   // China: manufacturing giant, energy-hungry, food-stressed, huge military burden
   'China':           {iso2:'cn', flag:'🇨🇳',isoNum:'156',continent:'Asia',           color:'#e53935',pop:1400,urb:65,mf:5, eco:55,bat:600,up:60,net:5, bal:{food:-4,water:-3,minerals:2,mfgGoods:5,services:-1,energy:-3}},
   // India: services+food but energy/minerals deficit, high upkeep
-  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:6, bal:{food:2,water:0,minerals:1,mfgGoods:0,services:2,energy:-3}},
+  'India':           {iso2:'in', flag:'🇮🇳',isoNum:'356',continent:'Asia',           color:'#e67e22',pop:1430,urb:36,mf:50,eco:28,bat:320,up:32,net:6, bal:{food:1,water:-2,minerals:1,mfgGoods:0,services:2,energy:-3}},
   // Japan: mfg/services leader, imports almost all raw materials
   'Japan':           {iso2:'jp', flag:'🇯🇵',isoNum:'392',continent:'Asia',           color:'#e84393',pop:124, urb:92,mf:75,eco:42,bat:140,up:14,net:7, bal:{food:-3,water:0,minerals:-3,mfgGoods:5,services:3,energy:-4}},
   // South Korea: similar to Japan, smaller
@@ -1024,7 +1024,7 @@ const PLAYABLE_COUNTRIES = {
   // North Korea: buffed — strong military machine + minerals, crippled services/food; higher eco start
   'North Korea':     {iso2:'kp', flag:'🇰🇵',isoNum:'408',continent:'Asia',           color:'#37474f',pop:26,  urb:63,mf:0, eco:16,bat:180,up:14,net:6, bal:{food:-2,water:1,minerals:4,mfgGoods:1,services:-4,energy:-1}},
   // ── OCEANIA ──
-  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:1,minerals:5,mfgGoods:-2,services:1,energy:2}},
+  'Australia':       {iso2:'au', flag:'🇦🇺',isoNum:'036',continent:'Oceania',        color:'#f4a261',pop:26,  urb:87,mf:78,eco:24,bat:38, up:4, net:8, bal:{food:4,water:-1,minerals:5,mfgGoods:-3,services:-1,energy:-1}},
   'New Zealand':     {iso2:'nz', flag:'🇳🇿',isoNum:'554',continent:'Oceania',        color:'#7d3c98',pop:5,   urb:87,mf:85,eco:10,bat:8,  up:1, net:7, bal:{food:4,water:3,minerals:2,mfgGoods:-2,services:1,energy:-1}},
 };
 
