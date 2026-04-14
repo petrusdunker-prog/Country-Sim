@@ -5791,11 +5791,23 @@ function initSoloGame(playerCountry, gov){
   GS.countries[playerCountry] = makeCountryState(playerCountry);
   GS.countries[playerCountry].playerName = name;
 
-  // Pick AI countries — weighted toward major powers for a more interesting game
+  // Pick AI countries — randomised each game, weighted by difficulty
   const majors = ['USA','China','Russia','United Kingdom','France','Germany','India','Japan','Brazil','Saudi Arabia','South Korea','Turkey','Iran','Australia','South Africa'];
-  const others  = Object.keys(PLAYABLE_COUNTRIES).filter(k=>k!==playerCountry&&!majors.includes(k));
-  const pool    = [...majors.filter(k=>k!==playerCountry), ...others];
-  const aiIDs   = pool.slice(0, aiCount);
+  const shuffle = arr => arr.slice().sort(() => Math.random() - 0.5);
+  const majPool  = shuffle(majors.filter(k => k !== playerCountry));
+  const minPool  = shuffle(Object.keys(PLAYABLE_COUNTRIES).filter(k => k !== playerCountry && !majors.includes(k)));
+  let aiIDs;
+  if(diff === 'easy'){
+    // Easy: 1-2 major powers + mostly smaller nations — lighter opposition
+    const easyMajorCount = Math.min(2, majPool.length);
+    aiIDs = [...majPool.slice(0, easyMajorCount), ...minPool].slice(0, aiCount);
+  } else if(diff === 'hard'){
+    // Hard: prioritise major powers — all opponents are significant threats
+    aiIDs = [...majPool, ...minPool].slice(0, aiCount);
+  } else {
+    // Normal: true random mix from the full pool
+    aiIDs = shuffle([...majPool, ...minPool]).slice(0, aiCount);
+  }
 
   aiIDs.forEach(id=>{
     const pc = PLAYABLE_COUNTRIES[id]; if(!pc) return;
