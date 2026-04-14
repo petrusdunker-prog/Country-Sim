@@ -871,6 +871,102 @@ const ACTION_COSTS = {
   ],
 };
 
+// ── Note-driven resource modifiers ──
+// Players can write keywords in action notes to trigger one-time resource effects.
+// Effects are applied once per matching note per turn (resources in/out of c.resources[]).
+// NOTE_MODIFIERS — keyword-driven resource effects for action notes.
+// Each matching keyword group triggers exactly once per note per turn.
+// Costs deducted from c.resources[key] or c.stockpile.energy; gains applied to same.
+// 'stability' and 'pool' gains are applied directly to c.stability / c.economy.pool.
+const NOTE_MODIFIERS = [
+  // ── Energy Production ──────────────────────────────────────────
+  { id:'oil_refinery',
+    keywords:['refinery','oil refin','petroleum','crude oil','oil plant','oil facility','fuel plant','oil well','drilling'],
+    label:'⛽ Oil Refinery', gain:{energy:3}, cost:{mfgGoods:2},
+    desc:'+3 energy · costs 2 mfg goods' },
+  { id:'renewable',
+    keywords:['solar','wind farm','wind power','wind energy','renewable','green energy','clean energy','photovoltaic','wind turbine','tidal energy','geotherm'],
+    label:'☀️ Renewable Energy', gain:{energy:2}, cost:{services:2},
+    desc:'+2 energy · costs 2 services' },
+  { id:'nuclear',
+    keywords:['nuclear plant','nuclear power','nuclear reactor','atomic power','nuclear energy','nuclear facility','fission','fusion reactor'],
+    label:'⚡ Nuclear Plant', gain:{energy:5}, cost:{minerals:2, mfgGoods:3},
+    desc:'+5 energy · costs 2 minerals + 3 mfg goods' },
+  { id:'hydroelectric',
+    keywords:['hydroelectric','hydro dam','hydropower','water dam','tidal power','hydro plant','dam construction','dam project'],
+    label:'🌊 Hydroelectric Dam', gain:{energy:2, water:1}, cost:{mfgGoods:2, services:1},
+    desc:'+2 energy +1 water · costs 2 mfg goods + 1 services' },
+  { id:'coal_plant',
+    keywords:['coal plant','coal power','coal fired','coal station','thermal power','coal energy'],
+    label:'🔥 Coal Power Plant', gain:{energy:4}, cost:{minerals:2, services:1},
+    desc:'+4 energy · costs 2 minerals + 1 services' },
+  // ── Resource Extraction ────────────────────────────────────────
+  { id:'mining',
+    keywords:['mining','quarry','mineral extraction','ore extraction','ore mine','coal mine','mine shaft','drilling operation','excavation','dig for minerals','mine for'],
+    label:'⛏ Mining Operation', gain:{minerals:3}, cost:{energy:2},
+    desc:'+3 minerals · costs 2 energy' },
+  { id:'logging',
+    keywords:['logging','lumber','forestry','timber','wood industry','deforestation','paper mill'],
+    label:'🌲 Logging / Timber', gain:{construction:3}, cost:{food:1},
+    desc:'+3 construction · costs 1 food' },
+  { id:'oil_extraction',
+    keywords:['oil extraction','oil field','oil production','pump oil','offshore oil','oil platform','oil rig'],
+    label:'🛢 Oil Extraction', gain:{energy:2, minerals:1}, cost:{mfgGoods:1},
+    desc:'+2 energy +1 minerals · costs 1 mfg goods' },
+  // ── Food & Water ───────────────────────────────────────────────
+  { id:'agriculture',
+    keywords:['farming','farm land','farmland','crop','irrigation','food production','harvest','greenhouse','plantation','livestock','agriculture','cultivat','granary'],
+    label:'🌾 Agriculture', gain:{food:3}, cost:{water:1},
+    desc:'+3 food · costs 1 water' },
+  { id:'desalination',
+    keywords:['desalin','water treatment','water purif','water plant','aqueduct','water infrastructure','reservoir','well drilling','water supply','clean water'],
+    label:'💧 Water Infrastructure', gain:{water:3}, cost:{energy:2},
+    desc:'+3 water · costs 2 energy' },
+  { id:'fisheries',
+    keywords:['fishing','fishery','fisheries','aquaculture','trawling','fish farm','ocean harvest'],
+    label:'🐟 Fisheries', gain:{food:2, services:1}, cost:{mfgGoods:1},
+    desc:'+2 food +1 services · costs 1 mfg goods' },
+  // ── Manufacturing & Construction ────────────────────────────────
+  { id:'factory',
+    keywords:['factory','factories','manufacturing','industrial plant','production facility','assembly plant','assembly line','steel mill','auto plant','workshop','forge','foundry','manufact'],
+    label:'🏭 Factory', gain:{mfgGoods:3}, cost:{minerals:1, energy:2},
+    desc:'+3 mfg goods · costs 1 minerals + 2 energy' },
+  { id:'construction_industry',
+    keywords:['construction sector','construction industry','cement plant','concrete production','build materials','building materials','construction company','construction firms'],
+    label:'🏗 Construction Industry', gain:{construction:3, mfgGoods:1}, cost:{minerals:2, energy:1},
+    desc:'+3 construction +1 mfg goods · costs 2 minerals + 1 energy' },
+  // ── Infrastructure & Services ───────────────────────────────────
+  { id:'roads',
+    keywords:['roads','highway','motorway','road network','road construction','paved roads','road project','rail','railway','metro','transit','transport network','bridge'],
+    label:'🛣 Roads & Infrastructure', gain:{stability:4}, cost:{mfgGoods:1, services:2},
+    desc:'+4 stability · costs 1 mfg goods + 2 services' },
+  { id:'service_sector',
+    keywords:['banking','finance sector','financial district','fintech','insurance','service industry','service sector','business district','business park','logistics','consulting'],
+    label:'🏦 Service Sector', gain:{services:3}, cost:{mfgGoods:1},
+    desc:'+3 services · costs 1 mfg goods' },
+  { id:'port',
+    keywords:['seaport','cargo port','naval port','commercial port','harbor','harbour','shipyard','maritime','dock','dockyard'],
+    label:'⚓ Port / Harbor', gain:{services:2}, cost:{mfgGoods:2, minerals:1},
+    desc:'+2 services · costs 2 mfg goods + 1 minerals' },
+  { id:'tech_park',
+    keywords:['tech park','technology park','science park','research park','silicon','startup hub','innovation district','r&d facility','research facility','tech hub'],
+    label:'💻 Tech Park', gain:{services:2, pool:3}, cost:{services:1, mfgGoods:1},
+    desc:'+2 services +3 eco pool · costs 1 services + 1 mfg goods' },
+  // ── Public Welfare & Stability ──────────────────────────────────
+  { id:'hospital',
+    keywords:['hospital','healthcare','clinic','medical','health system','health infrastructure','pharmaceutical','medicine','public health'],
+    label:'🏥 Healthcare', gain:{stability:3, food:1}, cost:{services:2, mfgGoods:1},
+    desc:'+3 stability +1 food · costs 2 services + 1 mfg goods' },
+  { id:'housing',
+    keywords:['housing','homes','residential','apartment','slum clearance','public housing','shelter','urbanisation','urban development'],
+    label:'🏠 Housing Program', gain:{stability:5}, cost:{mfgGoods:2, services:1},
+    desc:'+5 stability · costs 2 mfg goods + 1 services' },
+  { id:'education',
+    keywords:['school','university','education','literacy','college','vocational','training program','skill development','research university'],
+    label:'🎓 Education', gain:{services:2, pool:2}, cost:{services:1},
+    desc:'+2 services +2 eco pool · costs 1 services' },
+];
+
 // ── Secret Objectives (tiered) ──
 const OBJECTIVE_TIERS = [
   // Tier 1 — easy
@@ -1939,10 +2035,26 @@ function renderActionPanel(id){
     ${dealRateSel}
     ${targetSel}
     <div style="margin-bottom:5px">
-      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px;text-transform:uppercase">
-        Notes ${minNoteLen>0?`<span style="color:var(--orange)">(min ${minNoteLen} chars)</span>`:''}
-      </label>
-      <textarea id="act-note-${_actSlot}" rows="3" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:5px 7px;font-size:11px;resize:vertical;font-family:inherit" placeholder="${notePlaceholder}">${slotAct.note||''}</textarea>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase">
+          Notes ${minNoteLen>0?`<span style="color:var(--orange)">(min ${minNoteLen} chars)</span>`:''}
+        </label>
+        <button onclick="(function(btn){const g=document.getElementById('note-guide-${_actSlot}');const show=g.style.display==='none';g.style.display=show?'block':'none';btn.textContent=show?'▲ Hide guide':'📖 Keyword guide';})(this)" style="background:none;border:1px solid var(--border2);color:var(--text-dim);border-radius:var(--radius);padding:1px 6px;font-size:9px;cursor:pointer">📖 Keyword guide</button>
+      </div>
+      <div id="note-guide-${_actSlot}" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;margin-bottom:4px;max-height:220px;overflow-y:auto">
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Type any of these keywords in your notes to trigger resource effects this turn. Costs are deducted from your current stocks.</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <tr style="color:var(--text-dim);border-bottom:1px solid var(--border)"><th style="text-align:left;padding:2px 4px">Effect</th><th style="text-align:left;padding:2px 4px;color:var(--accent)">Gains</th><th style="text-align:left;padding:2px 4px;color:var(--orange)">Costs</th><th style="text-align:left;padding:2px 4px">Example keywords</th></tr>
+          ${NOTE_MODIFIERS.map(m=>`<tr style="border-bottom:1px solid var(--border);opacity:.9">
+            <td style="padding:3px 4px;white-space:nowrap">${m.label}</td>
+            <td style="padding:3px 4px;color:var(--accent)">${Object.entries(m.gain||{}).map(([k,v])=>`+${v} ${k}`).join(', ')}</td>
+            <td style="padding:3px 4px;color:var(--orange)">${Object.entries(m.cost||{}).map(([k,v])=>`-${v} ${k}`).join(', ')}</td>
+            <td style="padding:3px 4px;color:var(--text-dim);font-style:italic">${m.keywords.slice(0,3).join(', ')}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
+      <textarea id="act-note-${_actSlot}" rows="3" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:5px 7px;font-size:11px;resize:vertical;font-family:inherit" placeholder="${notePlaceholder}" oninput="renderNoteModPreview(this.value,'act-note-mods-${_actSlot}')">${slotAct.note||''}</textarea>
+      <div id="act-note-mods-${_actSlot}" style="margin-top:3px"></div>
       <div id="act-note-warn" style="font-size:10px;color:var(--orange);min-height:14px"></div>
     </div>
     <button class="btn primary submit-turn-btn" onclick="submitActions('${id}')">✓ Submit Turn</button>
@@ -1951,10 +2063,62 @@ function renderActionPanel(id){
   </div>`;
 
   const noteEl = document.getElementById('act-note-'+_actSlot);
-  if(noteEl && minNoteLen>0) noteEl.addEventListener('input', ()=>{
-    const w = document.getElementById('act-note-warn');
-    if(w) w.textContent = noteEl.value.length<minNoteLen ? `⚠ Need ${minNoteLen-noteEl.value.length} more chars for a ${selAct?.type} action` : '';
-  });
+  if(noteEl){
+    if(minNoteLen>0) noteEl.addEventListener('input', ()=>{
+      const w = document.getElementById('act-note-warn');
+      if(w) w.textContent = noteEl.value.length<minNoteLen ? `⚠ Need ${minNoteLen-noteEl.value.length} more chars for a ${selAct?.type} action` : '';
+    });
+    // Populate preview for existing note on first render
+    renderNoteModPreview(noteEl.value, 'act-note-mods-'+_actSlot);
+  }
+}
+
+function renderNoteModPreview(note, containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  const mods = parseNoteEffects(note);
+  if(!mods.length){ el.innerHTML = ''; return; }
+  // Check affordability using current GS if available
+  const c = GS && session.country ? GS.countries[session.country] : null;
+  const getStock = (key) => c ? (key==='energy' ? (c.stockpile?.energy||0) : (c.resources?.[key]||0)) : Infinity;
+  el.innerHTML = mods.map(mod => {
+    const canAfford = Object.entries(mod.cost||{}).every(([res,amt]) => getStock(res) >= amt);
+    const border = canAfford ? 'var(--border2)' : 'var(--orange)';
+    const gains = Object.entries(mod.gain||{}).map(([k,v])=>`<span style="color:var(--accent);font-weight:600">+${v} ${k}</span>`).join(' ');
+    const costParts = Object.entries(mod.cost||{}).map(([k,v]) => {
+      const stock = getStock(k);
+      const affordable = stock >= v;
+      return `<span style="color:${affordable?'var(--text-dim)':'var(--orange)'}">${affordable?'':'⚠ '}−${v} ${k}${c?` (have ${stock})`:''}`;
+    }).join(' ');
+    return `<div style="background:var(--surface2);border:1px solid ${border};border-radius:var(--radius);padding:3px 8px;font-size:10px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:2px">
+      <span style="font-weight:700;color:var(--text)">${mod.label}</span>
+      ${gains}
+      ${costParts ? `<span style="color:var(--text-dim);opacity:.6">·</span>${costParts}` : ''}
+      ${!canAfford ? `<span style="color:var(--orange);font-size:9px">(can't afford — effect skipped)</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Tooltip showing all available note keywords
+function renderNoteGuide(){
+  const cats = [
+    { cat:'⚡ Energy', ids:['oil_refinery','renewable','nuclear','hydroelectric','coal_plant','oil_extraction'] },
+    { cat:'⛏ Resources', ids:['mining','logging','agriculture','desalination','fisheries'] },
+    { cat:'🏭 Industry', ids:['factory','construction_industry'] },
+    { cat:'🏗 Infrastructure', ids:['roads','service_sector','port','tech_park'] },
+    { cat:'🏥 Welfare', ids:['hospital','housing','education'] },
+  ];
+  return cats.map(({cat,ids}) => {
+    const rows = ids.map(id => {
+      const m = NOTE_MODIFIERS.find(x=>x.id===id); if(!m) return '';
+      return `<tr><td style="padding:2px 6px;font-size:10px;white-space:nowrap">${m.label}</td>
+        <td style="padding:2px 6px;font-size:10px;color:var(--accent)">${Object.entries(m.gain||{}).map(([k,v])=>`+${v} ${k}`).join(', ')}</td>
+        <td style="padding:2px 6px;font-size:10px;color:var(--orange)">${Object.entries(m.cost||{}).map(([k,v])=>`${v} ${k}`).join(', ')}</td>
+        <td style="padding:2px 6px;font-size:10px;color:var(--text-dim);font-style:italic">${m.keywords.slice(0,3).join(', ')}</td></tr>`;
+    }).join('');
+    return `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px">${cat}</div>
+      <table style="width:100%;border-collapse:collapse">${rows}</table></div>`;
+  }).join('');
 }
 
 // Save current slot's note + target from DOM into c.actions before switching
@@ -2489,6 +2653,8 @@ function processTurn(){
     entry.actions[id]=c.actions.map(a=>({...a}));
     // Apply action effects
     c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
+    // Apply note-keyword resource effects
+    c.actions.forEach(act=>{ if(act&&act.note) applyNoteEffects(c, act.note, id); });
     // Replenish stockpiles — base rate + bonus from market resource stocks
     // This makes buying minerals/construction on the market directly useful:
     // excess minerals → extra critMinerals stockpile; excess construction → extra constructionMats
@@ -3423,6 +3589,8 @@ function aiProcessTurn(){
       entry.actions[id] = c.actions.map(a=>({...a}));
       // Apply structured action effects
       c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
+      // Apply note-keyword resource effects
+      c.actions.forEach(act=>{ if(act&&act.note) applyNoteEffects(c, act.note, id); });
       // Replenish stockpiles — base rate + bonus from market resource stocks
       if(c.stockpile && c.stockpileRate){
         const constStock = c.resources?.construction || 0;
@@ -3556,6 +3724,48 @@ function applyEffects(c, ef){
   if(ef.dipPts)    c.diplomacy.points      = (c.diplomacy.points||0)                    + ef.dipPts;
   if(ef.techPts)   c.tech.points           = (c.tech.points||0)                         + ef.techPts;
   if(ef.tier)      c.tech.tier             = Math.max(c.tech.tier||0, ef.tier);
+}
+
+function parseNoteEffects(note){
+  if(!note) return [];
+  const n = note.toLowerCase();
+  const matched = [];
+  for(const mod of NOTE_MODIFIERS){
+    if(mod.keywords.some(kw => n.includes(kw))){
+      if(!matched.find(m => m.id === mod.id)) matched.push(mod);
+    }
+  }
+  return matched;
+}
+
+function applyNoteEffects(c, note, id){
+  const mods = parseNoteEffects(note);
+  if(!mods.length) return;
+  if(!c.resources) return;
+  // Helper: get stock value for a key (energy lives in stockpile, rest in resources)
+  const getStock = (key) => key==='energy' ? (c.stockpile?.energy||0) : (c.resources[key]||0);
+  const setStock = (key, val) => {
+    if(key==='energy'){ if(!c.stockpile) c.stockpile={constructionMats:0,critMinerals:0,energy:0}; c.stockpile.energy=Math.max(0,val); }
+    else c.resources[key] = Math.max(0, val);
+  };
+  mods.forEach(mod => {
+    // Check all costs are affordable
+    const canAfford = Object.entries(mod.cost||{}).every(([res, amt]) => getStock(res) >= amt);
+    if(!canAfford) return;
+    // Deduct costs
+    Object.entries(mod.cost||{}).forEach(([res, amt]) => setStock(res, getStock(res) - amt));
+    // Apply gains
+    Object.entries(mod.gain||{}).forEach(([key, amt]) => {
+      if(key === 'stability') c.stability = Math.min(100, (c.stability||60) + amt);
+      else if(key === 'pool') c.economy.pool = (c.economy.pool||0) + amt;
+      else setStock(key, getStock(key) + amt);
+    });
+    if(!GS.newsBoard) GS.newsBoard = [];
+    const gainsStr = Object.entries(mod.gain||{}).map(([k,v])=>`+${v} ${k}`).join(', ');
+    GS.newsBoard.unshift({id:Date.now().toString(36)+'_ne',turn:GS.turn,type:'event',category:'politics',
+      title:`${mod.label.split(' ')[0]} ${id}: ${mod.label.split(' ').slice(1).join(' ')}`,
+      body:`${id} invested in ${mod.label.replace(/^[^\s]+ /,'')}. Gains: ${gainsStr}.`});
+  });
 }
 
 function applyActionEffects(c, actionId, category){
@@ -5740,6 +5950,8 @@ function processSoloTurn(){
   Object.entries(GS.countries).forEach(([id,c])=>{
     entry.actions[id]=c.actions.map(a=>({...a}));
     c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
+    // Apply note-keyword resource effects
+    c.actions.forEach(act=>{ if(act&&act.note) applyNoteEffects(c, act.note, id); });
     if(c.stockpile&&c.stockpileRate){
       c.stockpile.constructionMats=Math.min(30,(c.stockpile.constructionMats||0)+c.stockpileRate.constructionMats);
       c.stockpile.critMinerals    =Math.min(20,(c.stockpile.critMinerals||0)+c.stockpileRate.critMinerals);
