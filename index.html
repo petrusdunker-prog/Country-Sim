@@ -1533,6 +1533,7 @@ function normalizeState(s){
     if(!c.publicStance) c.publicStance = {};
   });
   if(!s.turnResults) s.turnResults = {};
+  if(!s.bilateralDeals) s.bilateralDeals = {};
   s.diplomacyProposals = s.diplomacyProposals || [];
   s.npcRelations = s.npcRelations || {};
   // Init NPC relations from hardcoded data for any player country not yet tracked
@@ -1877,6 +1878,20 @@ function renderActionPanel(id){
     ${!canAfford(selAct,usedEco,usedMat,usedMin,usedEgy)?'<div style="color:var(--red);font-size:10px;margin-top:3px">⚠ Insufficient resources</div>':''}
   </div>` : '';
 
+  // Discount rate selector for trade_deal proposals
+  const showDealRate = selCat==='diplomacy' && selId==='trade_deal';
+  const curDealRate = slotAct.dealRate || 0.10;
+  const dealRateSel = showDealRate ? `<div style="margin-bottom:5px">
+    <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px;text-transform:uppercase">Proposed Discount Rate</label>
+    <select id="act-deal-rate-${_actSlot}" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:5px 7px;font-size:12px">
+      <option value="0.05" ${curDealRate===0.05?'selected':''}>5% — Token gesture</option>
+      <option value="0.10" ${curDealRate===0.10||(!curDealRate)?'selected':''}>10% — Standard FTA</option>
+      <option value="0.15" ${curDealRate===0.15?'selected':''}>15% — Generous deal</option>
+      <option value="0.20" ${curDealRate===0.20?'selected':''}>20% — Deep partnership (matches alliance)</option>
+    </select>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:2px">The recipient can accept or decline in their Relations tab. Use notes to explain your offer.</div>
+  </div>` : '';
+
   // Target selector: player countries + NPC countries
   const MILITARY_DEPLOY_IDS = new Set(['mech_div','naval_fleet','air_wing']);
   const showTarget = selCat==='diplomacy' || (selCat==='military' && MILITARY_DEPLOY_IDS.has(selId));
@@ -1921,6 +1936,7 @@ function renderActionPanel(id){
     </select>
     <input type="hidden" id="act-cat-${_actSlot}" value="${selCat}">
     ${costPanel}
+    ${dealRateSel}
     ${targetSel}
     <div style="margin-bottom:5px">
       <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px;text-transform:uppercase">
@@ -1945,9 +1961,11 @@ function renderActionPanel(id){
 function saveActSlot(id){
   const c = GS.countries[id]; if(!c||!Array.isArray(c.actions)) return;
   const noteEl   = document.getElementById('act-note-'   + _actSlot);
-  const targetEl = document.getElementById('act-target-' + _actSlot);
-  if(noteEl)   c.actions[_actSlot].note      = noteEl.value.trim();
-  if(targetEl) c.actions[_actSlot].warTarget = targetEl.value;
+  const targetEl  = document.getElementById('act-target-' + _actSlot);
+  const dealRateEl = document.getElementById('act-deal-rate-' + _actSlot);
+  if(noteEl)     c.actions[_actSlot].note      = noteEl.value.trim();
+  if(targetEl)   c.actions[_actSlot].warTarget = targetEl.value;
+  if(dealRateEl) c.actions[_actSlot].dealRate  = parseFloat(dealRateEl.value) || 0.10;
 }
 
 function setActionCat(id, cat, slot){
@@ -1978,7 +1996,8 @@ function submitActions(id){
       category:  fromDom ? (document.getElementById('act-cat-'+i)?.value || '') : (c.actions[i].category || ''),
       actionId:  fromDom ? (document.getElementById('act-sel-'+i)?.value || '') : (c.actions[i].actionId || ''),
       note:      fromDom ? ((document.getElementById('act-note-'+i)?.value||'').trim()) : (c.actions[i].note || ''),
-      warTarget: fromDom ? (document.getElementById('act-target-'+i)?.value || '') : (c.actions[i].warTarget || '')
+      warTarget: fromDom ? (document.getElementById('act-target-'+i)?.value || '') : (c.actions[i].warTarget || ''),
+      dealRate:  fromDom ? (parseFloat(document.getElementById('act-deal-rate-'+i)?.value)||0.10) : (c.actions[i].dealRate || 0.10)
     };
   });
 
@@ -4629,24 +4648,132 @@ function renderRelationsTab(){
     </div>`;
   }).join('');
 
-  // ── Alliance summary ────────────────────────────────────────
+  // ── Proposals section ─────────────────────────────────────────
+  let proposalsSection = '';
+  if(isPlayer){
+    const incoming = (GS.diplomacyProposals||[]).filter(p=>p.to===myId);
+    const outgoing  = (GS.diplomacyProposals||[]).filter(p=>p.from===myId);
+    if(incoming.length || outgoing.length){
+      const inRows = incoming.map(p=>{
+        const m = PLAYER_META[p.from];
+        const typeLabel = p.type==='alliance'?'🤝 Alliance':'📋 FTA';
+        const pct = p.discountRate ? Math.round(p.discountRate*100) : 10;
+        const rateTag = p.type==='trade_deal' ? `<span style="background:#1a3a1a;border:1px solid var(--green);color:var(--green);border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700">−${pct}% discount</span>` : '';
+        const noteTag = p.note ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-style:italic">"${p.note}"</div>` : '';
+        return `<div style="background:#1a2e1a;border:1px solid var(--green)44;border-radius:var(--radius);padding:8px 10px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:18px">${m?.flag||'🌍'}</span>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700">${typeLabel} from <strong>${p.from}</strong></div>${noteTag}</div>
+            ${rateTag}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" style="flex:1;background:#2dc65322;border-color:var(--green);color:var(--green);font-weight:700" onclick="acceptProposal('${p.id}');renderRelationsTab()">✓ Accept</button>
+            <button class="btn" style="flex:1;background:#e05c6b22;border-color:var(--red);color:var(--red)" onclick="rejectProposal('${p.id}');renderRelationsTab()">✗ Decline</button>
+          </div>
+        </div>`;
+      }).join('');
+      const outRows = outgoing.map(p=>{
+        const m = PLAYER_META[p.to];
+        const typeLabel = p.type==='alliance'?'🤝 Alliance':'📋 FTA';
+        const pct = p.discountRate ? Math.round(p.discountRate*100) : 10;
+        return `<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:7px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:11px">
+          <span>${m?.flag||'🌍'}</span>
+          <div style="flex:1">${typeLabel} → <strong>${p.to}</strong>${p.type==='trade_deal'?` <span style="color:var(--accent)">−${pct}%</span>`:''} <span style="color:var(--text-dim)">(awaiting response)</span></div>
+          <button class="btn danger" style="font-size:9px;padding:2px 7px" onclick="rejectProposal('${p.id}');renderRelationsTab()" title="Cancel proposal">✕ Cancel</button>
+        </div>`;
+      }).join('');
+      proposalsSection = `<div class="rel-section" style="border-color:var(--green)55">
+        <h3 style="color:var(--green)">📬 Trade Proposals</h3>
+        ${incoming.length?`<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Incoming — needs your response</div>${inRows}`:''}
+        ${outgoing.length?`<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin:${incoming.length?'10px':0} 0 6px">Outgoing — waiting on them</div>${outRows}`:''}
+      </div>`;
+    }
+  }
+
+  // ── Formal arrangements summary ────────────────────────────
   let summarySection = '';
   if(isPlayer && myC){
     const allies = myC.diplomacy?.allies||[];
     const rivals = myC.diplomacy?.rivals||[];
     const agreements = myC.diplomacy?.agreements||[];
+    const allyBadges = allies.map(a=>`<span class="badge ally">🤝 ${a} −20%</span>`).join('');
+    const dealBadges = agreements.map(a=>{
+      const key=[myId,a].sort().join('|');
+      const deal=GS.bilateralDeals?.[key];
+      const pct=deal?Math.round(deal.discount*100):10;
+      return `<span class="badge deal">📋 ${a} −${pct}%</span>`;
+    }).join('');
+    const rivalBadges = rivals.map(r=>`<span class="badge rival">⚔️ ${r} +20%</span>`).join('');
     summarySection = `<div class="rel-section">
       <h3>📋 My Formal Arrangements</h3>
-      ${allies.length?`<div style="margin-bottom:8px"><div class="section-title">Alliances (−20% market)</div><div class="badge-row">${allies.map(a=>`<span class="badge ally">🤝 ${a}</span>`).join('')}</div></div>`:''}
-      ${rivals.length?`<div style="margin-bottom:8px"><div class="section-title">Rivals (+20% market)</div><div class="badge-row">${rivals.map(r=>`<span class="badge rival">⚔️ ${r}</span>`).join('')}</div></div>`:''}
-      ${agreements.length?`<div style="margin-bottom:8px"><div class="section-title">Trade Agreements (−10% market)</div><div class="badge-row">${agreements.map(a=>`<span class="badge deal">📋 ${a}</span>`).join('')}</div></div>`:''}
-      ${!allies.length&&!rivals.length&&!agreements.length?'<p style="font-size:11px;color:var(--text-dim)">No formal arrangements yet. Use Diplomacy proposals to form alliances.</p>':''}
-      <div style="margin-top:10px;font-size:10px;color:var(--text-dim)">💰 Eco pool: <strong style="color:var(--gold)">${myC.economy?.pool||0}</strong> · Use it to improve NPC relations below.</div>
+      ${allies.length?`<div style="margin-bottom:6px"><div class="section-title">Alliances</div><div class="badge-row">${allyBadges}</div></div>`:''}
+      ${agreements.length?`<div style="margin-bottom:6px"><div class="section-title">FTA Trade Agreements</div><div class="badge-row">${dealBadges}</div></div>`:''}
+      ${rivals.length?`<div style="margin-bottom:6px"><div class="section-title">Rivals</div><div class="badge-row">${rivalBadges}</div></div>`:''}
+      ${!allies.length&&!rivals.length&&!agreements.length?'<p style="font-size:11px;color:var(--text-dim)">No formal arrangements yet.</p>':''}
+      <div style="margin-top:8px;font-size:10px;color:var(--text-dim)">💰 Pool: <strong style="color:var(--gold)">${myC.economy?.pool||0}</strong> · Propose FTAs using a Diplomacy action, or the quick buttons below.</div>
+    </div>`;
+  }
+
+  // ── Player rows — enhanced with FTA status + propose button ──
+  if(isPlayer && playerIds.length > 1){
+    const rows2 = playerIds.filter(pid=>pid!==myId).map(pid=>{
+      const m = PLAYER_META[pid];
+      if(!m) return '';
+      const myAlly = (myC?.diplomacy?.allies||[]).includes(pid);
+      const myRival = (myC?.diplomacy?.rivals||[]).includes(pid);
+      const pubStance = myC?.publicStance?.[pid]||'neutral';
+      const theirPubStance = GS.countries?.[pid]?.publicStance?.[myId];
+      const theirLabel = theirPubStance==='ally'?'<span class="badge ally" style="font-size:9px">🤝 They say ally</span>':
+                         theirPubStance==='rival'?'<span class="badge rival" style="font-size:9px">⚔️ They say rival</span>':'';
+      // FTA status
+      const dealKey = [myId,pid].sort().join('|');
+      const deal = GS.bilateralDeals?.[dealKey];
+      const hasFTA = (myC?.diplomacy?.agreements||[]).includes(pid);
+      const pendingOut = (GS.diplomacyProposals||[]).find(p=>p.type==='trade_deal'&&p.from===myId&&p.to===pid);
+      const pendingIn  = (GS.diplomacyProposals||[]).find(p=>p.type==='trade_deal'&&p.from===pid&&p.to===myId);
+      let ftaStatus = '';
+      if(myAlly)        ftaStatus = `<span class="badge ally" style="font-size:9px">🤝 Allied −20%</span>`;
+      else if(hasFTA)   ftaStatus = `<span class="badge deal" style="font-size:9px">📋 FTA −${deal?Math.round(deal.discount*100):10}%</span>`;
+      else if(pendingOut) ftaStatus = `<span style="font-size:9px;color:var(--text-dim)">📤 Proposed −${Math.round((pendingOut.discountRate||0.10)*100)}%</span>`;
+      else if(pendingIn)  ftaStatus = `<span style="font-size:9px;color:var(--green)">📥 Offer: −${Math.round((pendingIn.discountRate||0.10)*100)}%</span>`;
+      const canPropose = !myAlly && !hasFTA && !pendingOut && !pendingIn && (myC?.economy?.pool||0) >= 3;
+      const proposeBtn = canPropose ? `<details style="display:inline-block">
+        <summary style="cursor:pointer;font-size:10px;color:var(--accent);list-style:none;padding:2px 7px;background:var(--surface2);border:1px solid var(--accent)44;border-radius:20px">📋 Propose FTA</summary>
+        <div style="position:absolute;z-index:50;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:10px;margin-top:4px;min-width:200px;box-shadow:0 4px 16px #0008">
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Offer discount to <strong>${pid}</strong> — costs 3💰</div>
+          <select id="fta-rate-${pid}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:4px;font-size:11px;margin-bottom:6px">
+            <option value="0.05">5% — Token gesture</option>
+            <option value="0.10" selected>10% — Standard</option>
+            <option value="0.15">15% — Generous</option>
+            <option value="0.20">20% — Deep partnership</option>
+          </select>
+          <button class="btn primary" style="width:100%;font-size:10px" onclick="directProposeFTA('${pid}',document.getElementById('fta-rate-${pid}').value)">Send Proposal</button>
+        </div>
+      </details>` : '';
+      const formalLabel = myAlly?'<span class="badge ally" style="font-size:9px">Formal Ally</span>':
+                          myRival?'<span class="badge rival" style="font-size:9px">Rival</span>':'';
+      return `<div class="rel-player-row" style="flex-wrap:wrap;gap:4px">
+        <span class="rel-flag">${m.flag}</span>
+        <div class="rel-name" style="flex:1;min-width:80px">${pid}<span style="font-size:10px;color:var(--text-dim);margin-left:4px">${m.player||''}</span>${theirLabel}</div>
+        ${formalLabel}${ftaStatus}
+        <div class="rel-stance-btns">
+          <button class="rel-stance-btn ${pubStance==='ally'?'active-ally':''}" onclick="setPublicStance('${pid}','ally')">🤝</button>
+          <button class="rel-stance-btn" onclick="setPublicStance('${pid}','neutral')" style="${pubStance==='neutral'?'border-color:var(--text-dim);color:var(--text)':''}">—</button>
+          <button class="rel-stance-btn ${pubStance==='rival'?'active-rival':''}" onclick="setPublicStance('${pid}','rival')">⚔️</button>
+        </div>
+        ${proposeBtn}
+      </div>`;
+    }).join('');
+    playerSection = `<div class="rel-section">
+      <h3>👥 Player Relations</h3>
+      <p style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Stance buttons (🤝 — ⚔️) set your <em>public</em> declaration. Use 📋 Propose FTA to send a negotiated trade deal — the other player accepts or declines.</p>
+      ${rows2||'<p style="font-size:11px;color:var(--text-dim)">No other players yet.</p>'}
     </div>`;
   }
 
   el.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px">
+      ${proposalsSection}
       ${summarySection}
       ${playerSection}
       <div class="rel-section">
@@ -4668,6 +4795,32 @@ function setPublicStance(targetId, stance){
   renderRelationsTab();
   const label = stance==='ally'?'allied with':'rivalling';
   toast(`You are now publicly ${label} ${targetId}`,'success');
+}
+
+function directProposeFTA(targetId, rateStr){
+  if(!GS || !session?.country || session.country==='gm') return;
+  const myId = session.country;
+  const c = GS.countries?.[myId];
+  if(!c){ toast('Country not found','error'); return; }
+  const discountRate = parseFloat(rateStr) || 0.10;
+  const pct = Math.round(discountRate * 100);
+  if((c.economy?.pool||0) < 3){ toast('Need at least 3💰 to propose an FTA','error'); return; }
+  const targetC = GS.countries?.[targetId];
+  if(!targetC){ toast('Target country not found','error'); return; }
+  if((c.diplomacy?.agreements||[]).includes(targetId)){ toast('Already have an FTA with '+targetId,'info'); return; }
+  if((c.diplomacy?.allies||[]).includes(targetId)){ toast('Already allied — alliance already includes trade benefits','info'); return; }
+  const already = (GS.diplomacyProposals||[]).some(p=>p.type==='trade_deal'&&p.from===myId&&p.to===targetId);
+  if(already){ toast('Already have a pending FTA proposal to '+targetId,'info'); return; }
+  c.economy.pool -= 3;
+  if(!GS.diplomacyProposals) GS.diplomacyProposals = [];
+  GS.diplomacyProposals.push({id:'prop_'+Date.now().toString(36),type:'trade_deal',from:myId,to:targetId,turn:GS.turn,discountRate,note:''});
+  if(!GS.newsBoard) GS.newsBoard = [];
+  GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+    title:`📋 FTA Proposed: ${myId} → ${targetId} (−${pct}%)`,
+    body:`${myId} has proposed a Free Trade Agreement with ${targetId} offering a ${pct}% mutual discount. ${targetId} must accept or reject in their Relations tab.`});
+  pushState();
+  renderRelationsTab();
+  toast(`FTA proposal sent to ${targetId} — offering ${pct}% discount`,'success');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4912,13 +5065,15 @@ function registerDiplomacyAction(id, c, act){
       // Player-to-player: create a pending proposal instead of applying immediately
       if(!GS.diplomacyProposals) GS.diplomacyProposals=[];
       const already = GS.diplomacyProposals.some(p=>p.type==='trade_deal'&&p.from===id&&p.to===targetId);
-      const alreadyDone = c.diplomacy.agreements.includes(targetId);
+      const alreadyDone = (c.diplomacy.agreements||[]).includes(targetId);
       if(!already && !alreadyDone){
-        GS.diplomacyProposals.push({id:'prop_'+Date.now().toString(36),type:'trade_deal',from:id,to:targetId,turn:GS.turn});
+        const discountRate = act.dealRate || 0.10;
+        const pct = Math.round(discountRate * 100);
+        GS.diplomacyProposals.push({id:'prop_'+Date.now().toString(36),type:'trade_deal',from:id,to:targetId,turn:GS.turn,discountRate,note:act.note||''});
         if(!GS.newsBoard) GS.newsBoard=[];
         GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
-          title:`📋 Trade Deal Proposed: ${id} → ${targetId}`,
-          body:`${id} has proposed a Free Trade Agreement with ${targetId}. ${targetId} must accept or reject in their Diplomacy tab.`});
+          title:`📋 FTA Proposed: ${id} → ${targetId} (−${pct}%)`,
+          body:`${id} has proposed a Free Trade Agreement with ${targetId} offering a ${pct}% mutual discount. ${targetId} must accept or reject in their Relations tab.`});
       }
     } else {
       if(!GS.newsBoard) GS.newsBoard=[];
@@ -4994,10 +5149,16 @@ function acceptProposal(propId){
   } else if(prop.type === 'trade_deal'){
     if(!fromC.diplomacy.agreements.includes(prop.to)) fromC.diplomacy.agreements.push(prop.to);
     if(!toC.diplomacy.agreements.includes(prop.from)) toC.diplomacy.agreements.push(prop.from);
+    // Store the negotiated discount rate bilaterally
+    const discountRate = prop.discountRate || 0.10;
+    const pct = Math.round(discountRate * 100);
+    if(!GS.bilateralDeals) GS.bilateralDeals = {};
+    const dealKey = [prop.from, prop.to].sort().join('|');
+    GS.bilateralDeals[dealKey] = { discount: discountRate, since: GS.turn, from: prop.from, to: prop.to };
     if(!GS.newsBoard) GS.newsBoard=[];
     GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
-      title:`📋 Trade Deal Confirmed: ${prop.from} ↔ ${prop.to}`,
-      body:`${prop.to} has accepted ${prop.from}'s Free Trade Agreement. Both nations enjoy a 10% mutual trade discount.`});
+      title:`📋 FTA Confirmed: ${prop.from} ↔ ${prop.to} (−${pct}%)`,
+      body:`${prop.to} has accepted ${prop.from}'s Free Trade Agreement. Both nations enjoy a ${pct}% mutual trade discount.`});
   }
   GS.diplomacyProposals.splice(idx,1);
   pushState();
@@ -5066,8 +5227,12 @@ function getDiplomaticModifier(buyerId, sellerId){
   if((buyer.sanctioning||[]).includes(sellerId) || (seller.sanctioning||[]).includes(buyerId)) return 1.35;
   // Alliance → best discount
   if((buyer.diplomacy?.allies||[]).includes(sellerId)) return 0.80;
-  // Trade deal → partial discount
-  if((buyer.diplomacy?.agreements||[]).includes(sellerId)) return 0.90;
+  // Trade deal → use negotiated rate (stored in bilateralDeals), fallback 10%
+  if((buyer.diplomacy?.agreements||[]).includes(sellerId)){
+    const dealKey = [buyerId, sellerId].sort().join('|');
+    const deal = GS.bilateralDeals?.[dealKey];
+    return deal ? (1 - deal.discount) : 0.90;
+  }
   // Rivals → surcharge
   if((buyer.diplomacy?.rivals||[]).includes(sellerId)) return 1.20;
   return 1.0;
@@ -5076,10 +5241,10 @@ function getDiplomaticModifier(buyerId, sellerId){
 function diplomaticModifierLabel(mod){
   if(mod === null) return { text:'⛔ Embargoed',  color:'var(--red)',    title:'Trade blocked by embargo' };
   if(mod <= 0.80)  return { text:'🤝 Allied −20%', color:'var(--green)', title:'Alliance discount: you pay 20% less' };
-  if(mod <= 0.90)  return { text:'📋 FTA −10%',    color:'var(--accent)', title:'Free Trade Agreement: 10% discount' };
+  if(mod < 1.0)  { const pct=Math.round((1-mod)*100); return { text:`📋 FTA −${pct}%`, color:'var(--accent)', title:`Free Trade Agreement: ${pct}% discount` }; }
   if(mod >= 1.35)  return { text:'🚫 Sanctioned +35%', color:'var(--red)', title:'Sanctions surcharge: 35% premium' };
   if(mod >= 1.20)  return { text:'⚔️ Rival +20%', color:'var(--orange)', title:'Rival nation surcharge: 20% premium' };
-  return null; // neutral — no badge
+  return null;
 }
 
 // Called once per turn processing to expire stale offers and run AI trading
