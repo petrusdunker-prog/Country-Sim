@@ -2779,7 +2779,7 @@ function renderBottomBar(){
       <div style="color:var(--text-dim)">${phase}</div>
       <div style="color:var(--text-dim)">✅ ${submitted}/${total} submitted</div>
       <div style="color:${timerColor};font-size:10px">${timerStr}</div>
-      <div style="color:var(--red);font-size:10px;cursor:pointer;margin-top:1px" onclick="resetGame()">🔄 Reset Room</div>
+      ${session.country==='gm' ? `<div style="color:var(--red);font-size:10px;cursor:pointer;margin-top:1px" onclick="resetGame()">🔄 Reset Room</div>` : ''}
       <div style="color:var(--accent);font-size:10px;cursor:pointer;margin-top:1px" onclick="openUnCouncil()">🌐 UN Council ${GS.turn>=(GS.nextUnTurn||5)?'(AVAILABLE)':'(Turn '+(GS.nextUnTurn||5)+')'}</div>
     </div>`;
   }
@@ -7507,7 +7507,8 @@ function renderMarketTab(){
   </div>` : '';
 
   // ── Negotiations ──
-  const negHtml = renderNegotiations(myId, myC);
+  let negHtml = '';
+  try { negHtml = renderNegotiations(myId, myC); } catch(e){ console.error('renderNegotiations error:', e); }
 
   // ── Offer renderer ──
   const renderOffer = (o, isOwn) => {
@@ -7828,8 +7829,9 @@ function renderNegotiations(myId, myC){
     const fromM  = PLAYER_META[n.fromId];
     const other  = n.initiator===myId ? n.target : n.initiator;
     const otherM = PLAYER_META[other];
-    const roundBadge = n.history.length>0 ? `<span style="font-size:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:2px 7px">Round ${n.history.length+1}</span>` : '';
-    const historyHtml = n.history.length>0 ? `<div style="font-size:10px;color:var(--text-dim);margin-top:4px">Previous: ${n.history.slice(-3).map(h=>{const hr=MARKET_RESOURCES[h.fromRes];const wr=MARKET_RESOURCES[h.toRes];return `${h.fromId} offered ${h.fromQty}\xd7 ${hr?hr.icon:''}${hr?hr.label:h.fromRes} for ${h.toQty}\xd7 ${wr?wr.icon:''}${wr?wr.label:h.toRes}`;}).join(' \u2192 ')}</div>` : '';
+    const _hist = n.history || [];
+    const roundBadge = _hist.length>0 ? `<span style="font-size:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:2px 7px">Round ${_hist.length+1}</span>` : '';
+    const historyHtml = _hist.length>0 ? `<div style="font-size:10px;color:var(--text-dim);margin-top:4px">Previous: ${_hist.slice(-3).map(h=>{const hr=MARKET_RESOURCES[h.fromRes];const wr=MARKET_RESOURCES[h.toRes];return `${h.fromId} offered ${h.fromQty}\xd7 ${hr?hr.icon:''}${hr?hr.label:h.fromRes} for ${h.toQty}\xd7 ${wr?wr.icon:''}${wr?wr.label:h.toRes}`;}).join(' \u2192 ')}</div>` : '';
     let actionHtml = '';
     if(kind==='incoming'){
       const ctrOpts = Object.entries(MARKET_RESOURCES).map(([k,r])=>`<option value="${k}">${r.icon} ${r.label}</option>`).join('');
@@ -7850,7 +7852,7 @@ function renderNegotiations(myId, myC){
         </div>
       </div>`;
     } else if(kind==='outgoing'){
-      const canCancel = n.initiator===myId && n.history.length===0;
+      const canCancel = n.initiator===myId && (n.history||[]).length===0;
       actionHtml = `<div class="neg-actions">
         <span style="font-size:11px;color:var(--gold);background:var(--gold)11;border:1px solid var(--gold)33;border-radius:8px;padding:3px 9px">Awaiting ${otherM?otherM.flag+' ':''}${other}</span>
         ${canCancel ? `<button class="btn danger" style="font-size:11px;padding:4px 10px" onclick="cancelNegotiation('${n.id}')">Cancel</button>` : ''}
