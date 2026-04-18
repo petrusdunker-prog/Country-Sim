@@ -1985,6 +1985,15 @@ function initFirebase(){
       const data = snap.val();
       if(data){
         GS = normalizeState(data);
+        // Auto-clear Away AI when the real player reconnects
+        const myId = session.country;
+        if(myId && myId !== 'gm' && GS.slots?.[myId]?.offlineAI){
+          GS.slots[myId].offlineAI = false;
+          const c = GS.countries[myId];
+          if(c){ c.submitted = false; c.actions = [{category:'',actionId:'',note:'',warTarget:''}]; }
+          gsRef.set(GS); // push the cleared state
+          toast('👤 Welcome back! Away mode deactivated.', 'success');
+        }
       } else {
         const isGM = session.country === 'gm';
         const isRoomCreator = _roomCode && session._roomCreator;
@@ -3448,8 +3457,33 @@ function advanceTurn(){
   const playerCount = Object.keys(GS.slots||{}).length;
   if(playerCount < 1){ toast('At least 1 player must join before starting a turn.','error'); return; }
   GS.phase='collecting';
+  // Reset all submitted states first
   Object.values(GS.countries).forEach(c=>{ c.submitted=false; c.actions=[{category:'',actionId:'',note:'',warTarget:''}]; });
-  pushState(); toast('Collecting actions for Turn '+(GS.turn+1));
+  // Immediately auto-submit Room AIs and Away AIs so GM console shows them as ready
+  Object.entries(GS.countries).forEach(([id, c])=>{
+    if(!GS.slots[id]) return;
+    if(GS.slots[id].isAI && !GS.slots[id].offlineAI){
+      // Full room AI — use smart decision engine
+      const action = aiDecideAction(id, c, GS.difficulty||'normal');
+      if(action){
+        c.economy.pool = Math.max(0,(c.economy.pool||0)-action.eco);
+        if(c.stockpile){
+          c.stockpile.constructionMats = Math.max(0,(c.stockpile.constructionMats||0)-(action.mat||0));
+          c.stockpile.critMinerals     = Math.max(0,(c.stockpile.critMinerals||0)-(action.min||0));
+          c.stockpile.energy           = Math.max(0,(c.stockpile.energy||0)-(action.egy||0));
+        }
+        c.actions = [{category:action.category, actionId:action.id, note:'AI decision', warTarget:''}];
+      }
+      c.submitted = true;
+    } else if(GS.slots[id].offlineAI){
+      // Human on away-mode — use learned profile
+      generateAwayAIAction(id, c);
+    }
+  });
+  // Also respond to any pending diplomacy proposals for AI countries
+  aiRespondToProposals();
+  pushState();
+  toast('▶ Turn '+(GS.turn+1)+' — collecting actions');
 }
 
 function deleteRoom(){
@@ -3639,13 +3673,9 @@ function generateOfflineAIAction(id, c){
     ? `AI-managed steady state action for ${id}. Maintaining national stability and economic growth while player is away.`
     : (chosen?.type === 'Minor' ? `AI maintenance action for ${id}.` : '');
 
-  c.actions = chosen
-    ? [{ category:chosenCat, actionId:chosen.id, note, warTarget:'' },
-       {category:'',actionId:'',note:'',warTarget:''},
-       {category:'',actionId:'',note:'',warTarget:''}]
-    : [{category:'',actionId:'',note:'',warTarget:''},
-       {category:'',actionId:'',note:'',warTarget:''},
-       {category:'',actionId:'',note:'',warTarget:''}];
+  c.actions = [chosen
+    ? { category:chosenCat, actionId:chosen.id, note, warTarget:'' }
+    : {category:'',actionId:'',note:'',warTarget:''}];
   c.submitted = true;
 }
 
@@ -8594,8 +8624,8 @@ function aiRespondToProposals(){
   GS.diplomacyProposals.forEach(prop => {
     // Only process proposals where the recipient is an AI country
     if(!GS.slots[prop.to]?.isAI) return;
-    // Skip proposals that arrived this very turn (give 1 turn grace so player sees it posted first)
-    if(prop.turn >= GS.turn) return;
+    // Skip proposals from a FUTURE turn (shouldn't happen), but process same-turn proposals
+    if(prop.turn > GS.turn) return;
 
     const aiC    = GS.countries[prop.to];
     const fromC  = GS.countries[prop.from];
