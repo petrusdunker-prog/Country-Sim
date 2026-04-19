@@ -1928,6 +1928,7 @@ const SESSION_KEY = 'csr_session_v3'; // bumped: now includes roomCode
 let session = null; // { name, country, roomCode? }
 let _roomCode = null; // null = main game; string = room id
 let _actSlot = 0; // which action slot (0,1,2) is being edited in the UI
+let _lastAutoProcessedTurn = -1; // guard: prevents processTurn() firing twice for the same turn
 
 function getSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch{ return null; } }
 function setSession(s){ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); session = s; }
@@ -2063,7 +2064,8 @@ function importState(){
 
 function normalizeState(s){
   if(s.turn  === undefined || s.turn  === null) s.turn  = 0;
-  if(!s.phase) s.phase = 'setup';
+  // Rooms always use 'collecting' as the default — 'setup' is only for pre-game solo
+  if(!s.phase) s.phase = _roomCode ? 'collecting' : 'setup';
   s.turnLog    = s.turnLog    || [];
   s.wars       = s.wars       || [];
   s.events     = s.events     || [];
@@ -8475,9 +8477,15 @@ function updateAllUI(){
       advanceTurn(); return;
     }
     if(GS.phase === 'collecting' && playerCount > 0){
-      const total = Object.keys(GS.countries).length;
-      const submitted = Object.values(GS.countries).filter(c=>c.submitted).length;
-      if(total > 0 && submitted >= total){ processTurn(); return; }
+      // Count only slotted countries (exclude gm seat) — ignores ghost GS.countries entries
+      const slottedIds = Object.keys(GS.slots||{}).filter(id => id !== 'gm');
+      const total = slottedIds.length;
+      const submitted = slottedIds.filter(id => GS.countries[id]?.submitted).length;
+      // Guard: only process each turn number once (prevents double-fire on rapid Firebase events)
+      if(total > 0 && submitted >= total && GS.turn !== _lastAutoProcessedTurn){
+        _lastAutoProcessedTurn = GS.turn;
+        processTurn(); return;
+      }
     }
   }
   // Always refresh GM console for GM (they need real-time action updates)
