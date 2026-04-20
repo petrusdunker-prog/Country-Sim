@@ -2029,13 +2029,15 @@ const MARKET_RESOURCES = {
   construction: { label:'Construction Mats',   icon:'🧱', basePrice:3,  field:'construction'  },
   mfgGoods:     { label:'Manufactured Goods',  icon:'🏭', basePrice:8,  field:'mfgGoods'      },
   services:     { label:'Services',            icon:'💼', basePrice:5,  field:'services'      },
+  energy:       { label:'Energy',              icon:'⚡', basePrice:6,  field:'energy',       isStockpile:true },
+  critMinerals: { label:'Critical Minerals',   icon:'💎', basePrice:10, field:'critMinerals', isStockpile:true },
 };
 
 const INITIAL_STATE = {
   turn:0, date:'January 2025', phase:'setup',
   slots:{},
   countries:{},
-  worldMarket:{food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}},
+  worldMarket:{food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0},energy:{price:6,trend:0},critMinerals:{price:10,trend:0}},
   market:{ offers:[], negotiations:[] },
   wars:[],events:[],turnLog:[],newsBoard:[],
   chat:[],
@@ -2380,8 +2382,10 @@ function normalizeState(s){
   if(!s.madStandoffs)            s.madStandoffs  = [];
   if(!s.market) s.market = { offers:[] };
   if(!s.market.offers) s.market.offers = [];
-  if(!s.worldMarket) s.worldMarket = {food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0}};
-  if(!s.worldMarket.construction) s.worldMarket.construction = {price:3,trend:0}; // migrate old saves
+  if(!s.worldMarket) s.worldMarket = {food:{price:2,trend:0},water:{price:2,trend:0},minerals:{price:4,trend:0},construction:{price:3,trend:0},services:{price:5,trend:0},mfgGoods:{price:8,trend:0},military:{price:20,trend:0},energy:{price:6,trend:0},critMinerals:{price:10,trend:0}};
+  if(!s.worldMarket.construction)  s.worldMarket.construction  = {price:3, trend:0}; // migrate old saves
+  if(!s.worldMarket.energy)        s.worldMarket.energy        = {price:6, trend:0}; // migrate old saves
+  if(!s.worldMarket.critMinerals)  s.worldMarket.critMinerals  = {price:10,trend:0}; // migrate old saves
   // Rebuild rel entries between all player countries
   const cids = Object.keys(s.countries);
   cids.forEach(id => {
@@ -8184,13 +8188,14 @@ function renderMarketTab(){
     <div class="section-title" style="margin-bottom:8px">Your Tradeable Resources</div>
     <div class="mkt-res-row">
       ${Object.entries(MARKET_RESOURCES).map(([key,r])=>{
-        const stock = myC.resources[key]||0;
-        const bal   = myC.resourceBalance?.[key]||0;
+        const stock = r.isStockpile ? (myC.stockpile?.[key]||0) : (myC.resources[key]||0);
+        const bal   = r.isStockpile ? (myC.stockpileRate?.[key]||0) : (myC.resourceBalance?.[key]||0);
+        const balLabel = r.isStockpile ? `+${bal}/t stockpile` : `${bal>0?'+':''}${bal}/t`;
         return `<div class="mkt-res-chip">
           <span style="font-size:18px">${r.icon}</span>
           <span class="rc-val">${stock}</span>
           <span style="font-size:11px;color:var(--text-dim)">${r.label}</span>
-          <span class="rc-bal" style="color:${bal>0?'var(--green)':bal<0?'var(--red)':'var(--text-dim)'}">${bal>0?'+':''}${bal}/t</span>
+          <span class="rc-bal" style="color:${bal>0?'var(--green)':bal<0?'var(--red)':'var(--text-dim)'}">${balLabel}</span>
         </div>`;
       }).join('')}
     </div>
@@ -8315,9 +8320,11 @@ function postMarketOffer(){
   const qty       = parseInt(document.getElementById('mktQty')?.value)   || 0;
   const priceEach = parseInt(document.getElementById('mktPrice')?.value) || 0;
   const c = GS.countries[session.country];
+  const mktRes = MARKET_RESOURCES[resource];
   if(!c||!resource||qty<1||priceEach<1){ toast('Fill in all market fields','error'); return; }
-  if((c.resources[resource]||0) < qty){ toast(`Not enough ${MARKET_RESOURCES[resource]?.label||resource} (have ${c.resources[resource]||0})`, 'error'); return; }
-  c.resources[resource] -= qty;   // held in escrow
+  const haveAmt = mktRes?.isStockpile ? (c.stockpile?.[resource]||0) : (c.resources[resource]||0);
+  if(haveAmt < qty){ toast(`Not enough ${mktRes?.label||resource} (have ${haveAmt})`, 'error'); return; }
+  if(mktRes?.isStockpile){ c.stockpile[resource] -= qty; } else { c.resources[resource] -= qty; } // held in escrow
   if(!GS.market) GS.market={offers:[]};
   GS.market.offers.push({
     id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
@@ -8363,7 +8370,8 @@ function buyMarketOffer(offerId){
   if(!GS.newsBoard) GS.newsBoard=[];
   if(route.turns === 0){
     // Same continent — instant delivery
-    myC.resources[o.resource] = (myC.resources[o.resource]||0) + o.qty;
+    if(r?.isStockpile && myC.stockpile){ myC.stockpile[o.resource] = (myC.stockpile[o.resource]||0) + o.qty; }
+    else { myC.resources[o.resource] = (myC.resources[o.resource]||0) + o.qty; }
     GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
       title:`🤝 Trade: ${session.country} buys ${r?.label||o.resource} from ${o.seller}`,
       body:`${session.country} purchased ${o.qty} units of ${r?.label||o.resource} from ${o.seller} for ${total} eco${dipLabel}${stabLabel}${inflLabel}${defLabel}. Route: ${route.route} — instant delivery.`});
@@ -8397,7 +8405,11 @@ function cancelMarketOffer(offerId){
   if(idx<0){ toast('Offer not found','error'); return; }
   const o = GS.market.offers[idx];
   const c = GS.countries[session.country];
-  if(c) c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty;  // escrow returned
+  if(c){
+    const mktRes = MARKET_RESOURCES[o.resource];
+    if(mktRes?.isStockpile && c.stockpile){ c.stockpile[o.resource] = (c.stockpile[o.resource]||0) + o.qty; }
+    else { c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty; }
+  }
   GS.market.offers.splice(idx, 1);
   pushState();
   toast('Offer cancelled — resources returned','info');
@@ -8542,9 +8554,7 @@ function showCounterForm(negId){
 
 function renderNegotiations(myId, myC){
   const isMultiplayer = !!_roomCode;
-  if(!isMultiplayer){
-    return '<div class="market-post-form" style="margin-bottom:6px"><h3>🤝 Trade Negotiations</h3><div style="color:var(--text-dim);font-size:12px;padding:4px 0">Trade negotiations are a multiplayer-only feature. Start or join a room to use them.</div></div>';
-  }
+  if(!isMultiplayer) return ''; // hidden in solo — no other humans to negotiate with
   const isGM = myId==='gm';
   // Clean up resolved negotiations older than 2 turns
   if(GS.market?.negotiations){
@@ -8949,7 +8959,9 @@ function processMarketDeliveries(){
     const totalLossPct = (d.baseLoss / 100) + piracyRoll;
     const delivered = Math.max(1, Math.round(d.qty * (1 - totalLossPct)));
     const lost = d.qty - delivered;
-    buyerC.resources[d.resource] = (buyerC.resources[d.resource]||0) + delivered;
+    const _dRes = MARKET_RESOURCES[d.resource];
+    if(_dRes?.isStockpile && buyerC.stockpile){ buyerC.stockpile[d.resource] = (buyerC.stockpile[d.resource]||0) + delivered; }
+    else { buyerC.resources[d.resource] = (buyerC.resources[d.resource]||0) + delivered; }
     if(!GS.newsBoard) GS.newsBoard=[];
     const r = MARKET_RESOURCES[d.resource];
     const pirateNote = lost > 0 ? ` (${lost} unit${lost>1?'s':''} lost to ${piracyRoll > 0.02 ? 'piracy' : 'spoilage/transit'})` : '';
@@ -8972,7 +8984,11 @@ function processMarketTurn(){
   expired.forEach(o => {
     if(!o.sellerIsAI){
       const c = GS.countries[o.seller];
-      if(c) c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty;
+      if(c){
+        const mktRes = MARKET_RESOURCES[o.resource];
+        if(mktRes?.isStockpile && c.stockpile){ c.stockpile[o.resource] = (c.stockpile[o.resource]||0) + o.qty; }
+        else { c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty; }
+      }
     }
   });
   GS.market.offers = GS.market.offers.filter(o => (GS.turn - (o.postedTurn||0)) < 3);
@@ -9060,6 +9076,24 @@ function processMarketTurn(){
         }
         GS.market.offers = GS.market.offers.filter(o=>o.id!==pick.id);
       }
+    }
+  });
+
+  // ── Always guarantee energy & critical minerals are available ──
+  // These are essential for military/project actions; if no one is selling, the world market
+  // itself posts a small supply so players can never be completely stuck.
+  ['energy','critMinerals'].forEach(res => {
+    const countAvail = GS.market.offers.filter(o => o.resource === res && o.sellerIsAI).length;
+    if(countAvail < 2){
+      const r = MARKET_RESOURCES[res];
+      const basePrice = GS.worldMarket?.[res]?.price || r.basePrice;
+      const qty = 3 + Math.floor(Math.random()*5);
+      const price = Math.max(1, Math.round(basePrice * (0.90 + Math.random()*0.30)));
+      GS.market.offers.push({
+        id: Date.now().toString(36)+res+Math.random().toString(36).slice(2,5),
+        seller:'World Market', sellerIsAI:true,
+        resource:res, qty, priceEach:price, postedTurn:GS.turn
+      });
     }
   });
 }
