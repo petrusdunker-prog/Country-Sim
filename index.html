@@ -6947,12 +6947,60 @@ function processTariffs(){
 
 function updateDynamicPrices(){
   if(!GS||!GS.worldMarket) return;
+  // Snapshot prices before updating so we can compute deltas for the news report
+  const _oldPrices = {};
+  Object.entries(GS.worldMarket).forEach(([res,mkt])=>{ _oldPrices[res] = mkt.price; });
+
   Object.entries(GS.worldMarket).forEach(([res,mkt])=>{
     const drift = (Math.random()-0.5)*1.5;
     mkt.price = Math.max(1, Math.min(30, mkt.price + drift));
     mkt.trend = drift > 0.3 ? 1 : drift < -0.3 ? -1 : 0;
     const proxyPressure = Object.values(GS.countries||{}).some(c=>(c.proxies||[]).some(p=>p.type==='economic'));
     if(proxyPressure && Math.random()<0.3) mkt.price = Math.max(1, mkt.price + 0.5);
+  });
+
+  // ── Market report for Events page ──────────────────────────────
+  const rising = [], falling = [], flat = [];
+  Object.entries(GS.worldMarket).forEach(([res, mkt])=>{
+    const info = MARKET_RESOURCES[res]; // skip 'military' which has no display label
+    if(!info) return;
+    const delta = mkt.price - (_oldPrices[res]||mkt.price);
+    const obj = { label:info.label, icon:info.icon, price:mkt.price.toFixed(1), delta };
+    if(mkt.trend === 1)       rising.push(obj);
+    else if(mkt.trend === -1) falling.push(obj);
+    else                      flat.push(obj);
+  });
+
+  // Only post a news card when at least 2 commodities moved (avoids trivial single-item noise)
+  if(rising.length + falling.length < 2) return;
+
+  // Headline tone
+  let headEmoji, headLine;
+  if(rising.length > 0 && falling.length === 0){
+    headEmoji='📈'; headLine=`Commodity Rally — ${rising.slice(0,2).map(r=>r.label).join(' & ')} leading gains`;
+  } else if(falling.length > 0 && rising.length === 0){
+    headEmoji='📉'; headLine=`Commodity Sell-off — ${falling.slice(0,2).map(f=>f.label).join(' & ')} under pressure`;
+  } else if(rising.length >= falling.length){
+    headEmoji='📈'; headLine=`Bullish Session — ${rising.length} commodities up, ${falling.length} down`;
+  } else {
+    headEmoji='📉'; headLine=`Bearish Session — ${falling.length} commodities down, ${rising.length} up`;
+  }
+
+  // Body: one line per direction grouping
+  const fmtList = arr => arr.map(x=>`${x.icon} ${x.label} <strong>${x.price}</strong>`).join(' · ');
+  const bodyParts = [];
+  if(rising.length)  bodyParts.push(`📈 Rising: ${fmtList(rising)}`);
+  if(falling.length) bodyParts.push(`📉 Falling: ${fmtList(falling)}`);
+  if(flat.length)    bodyParts.push(`➡️ Stable: ${fmtList(flat)}`);
+
+  if(!GS.newsBoard) GS.newsBoard=[];
+  GS.newsBoard.unshift({
+    id: Date.now().toString(36)+'_mkt',
+    turn: GS.turn,
+    type: 'event',
+    category: 'market',
+    title: `${headEmoji} ${headLine}`,
+    body: bodyParts.join('<br>'),
   });
 }
 
