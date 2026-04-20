@@ -2282,7 +2282,7 @@ function normalizeState(s){
 // ══════════════════════════════════════════════════════════════
 //  MAP
 // ══════════════════════════════════════════════════════════════
-let svgSel, pathGen, zoomBeh, gCountries;
+let svgSel, pathGen, zoomBeh, gCountries, _worldGeo = null;
 
 async function initMap(){
   const wrap = document.getElementById('map-wrap');
@@ -2299,6 +2299,7 @@ async function initMap(){
   document.getElementById('zoomReset').onclick = () => svgSel.transition().duration(400).call(zoomBeh.transform,d3.zoomIdentity);
   try{
     const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    _worldGeo = world; // stored at module scope so updateAllianceBorders() can access it later
     gCountries.selectAll('.country-path').data(topojson.feature(world,world.objects.countries).features).enter()
       .append('path').attr('class','country-path').attr('d',pathGen)
       .attr('fill', d => countryFill(String(d.id)))
@@ -2307,6 +2308,7 @@ async function initMap(){
       .on('click', countryClick);
     gCountries.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b))
       .attr('fill','none').attr('stroke','rgba(0,0,0,.35)').attr('stroke-width',.3).attr('d',pathGen).style('pointer-events','none');
+    updateAllianceBorders(); // draw alliance borders once map is ready
   } catch(e){
     svgSel.append('text').attr('x','50%').attr('y','50%').attr('text-anchor','middle').attr('fill','#768390').attr('font-size',14)
       .text('⚠ Map requires internet. Connect and reload.');
@@ -2350,6 +2352,59 @@ function countryClick(event,d){
   if(playable){ renderPlayableNpcCard(playable.name,playable.pc); return; }
   if(NPC_META[iso]||NPC_META[norm(iso)]){ renderNpcCard(iso); return; }
   renderMinorCard(iso);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ALLIANCE BORDER OVERLAY
+// ══════════════════════════════════════════════════════════════
+function updateAllianceBorders(){
+  if(!gCountries || !_worldGeo || !GS) return;
+
+  // Always clear the old layer first
+  gCountries.select('#allianceLayer').remove();
+
+  // Only show for real players logged in as a country (not GM, not spectator)
+  const myId = session?.country;
+  if(!myId || myId === 'gm' || session?.role === 'spectator') return;
+  const myC = GS.countries?.[myId];
+  if(!myC) return;
+
+  const allies = myC.diplomacy?.allies || [];
+  if(!allies.length) return;
+
+  // Build set of ally ISO numbers for fast lookup
+  const allyIsos = new Set();
+  allies.forEach(id => {
+    const iso = PLAYABLE_COUNTRIES[id]?.isoNum;
+    if(iso) allyIsos.add(norm(String(iso)));
+  });
+  if(!allyIsos.size) return;
+
+  // Overlay group lives inside gCountries → inherits zoom transform automatically
+  const layer = gCountries.append('g')
+    .attr('id','allianceLayer')
+    .style('pointer-events','none'); // clicks pass through to country paths
+
+  const features = topojson.feature(_worldGeo, _worldGeo.objects.countries).features;
+  features.forEach(f => {
+    if(!allyIsos.has(norm(String(f.id)))) return;
+    const d = pathGen(f);
+    // Outer glow — wide, soft
+    layer.append('path').attr('d',d)
+      .attr('fill','none')
+      .attr('stroke','#2dc653')
+      .attr('stroke-width', 4.5)
+      .attr('stroke-opacity', 0.25)
+      .attr('stroke-linejoin','round');
+    // Inner crisp border
+    layer.append('path').attr('d',d)
+      .attr('fill','none')
+      .attr('stroke','#2dc653')
+      .attr('stroke-width', 1.8)
+      .attr('stroke-opacity', 0.90)
+      .attr('stroke-linejoin','round')
+      .attr('stroke-dasharray','none');
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -8927,7 +8982,15 @@ function renderMapLegend(){
     return `<div class="leg-row" style="${meStyle}cursor:pointer" onclick="countryPillClick('${id}')">
       <span class="leg-dot" style="background:${m.color};${isMe?'outline:1px solid #fff;':''};"></span>${nameLabel}</div>`;
   }).join('');
-  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${_soloMode?'🎮 Solo — ':''}Players</div>${rows}`;
+  // Alliance legend entry (only shown to players who have allies)
+  const myId = session?.country;
+  const myAllies = (myId && myId !== 'gm' && GS.countries?.[myId]?.diplomacy?.allies) || [];
+  const allyLegend = myAllies.length
+    ? `<div class="leg-row" style="margin-top:5px;border-top:1px solid var(--border);padding-top:4px">
+        <span class="leg-dot" style="background:none;border:2px solid #2dc653;"></span>
+        <span style="color:#2dc653;font-size:10px">Your alliances (${myAllies.length})</span>
+      </div>` : '';
+  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${_soloMode?'🎮 Solo — ':''}Players</div>${rows}${allyLegend}`;
 }
 
 function _updateDiploBadge(){
@@ -8965,6 +9028,7 @@ function updateAllUI(){
   renderMapLegend();
   renderBottomBar();
   _updateDiploBadge();
+  updateAllianceBorders();
   // Show turn narrator modal for human players when new unseen results arrive
   {
     const _myId = session?.country;
