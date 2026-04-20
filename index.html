@@ -4770,9 +4770,11 @@ function processPuppetTributes(){
   });
 }
 
-function processTurn(){
-  if(session.country !== 'gm'){ toast('Only the GM can process turns','error'); return; }
+function processTurn(internal=false){
+  if(!internal && session.country !== 'gm'){ toast('Only the GM can process turns','error'); return; }
   if(Object.keys(GS.slots||{}).length < 1){ toast('At least 1 player must be in the game.','error'); return; }
+  if(GS.phase !== 'collecting'){ return; } // race-condition guard: another client already started processing
+  GS.phase = 'processing'; // lock immediately so no other client double-fires
   const entry={turn:GS.turn+1,date:getTurnDate(GS.turn+1),actions:{}};
   // Submit smart AI actions for full AI countries (isAI slots, not offlineAI)
   Object.entries(GS.countries).forEach(([id, c]) => {
@@ -8720,22 +8722,21 @@ function updateAllUI(){
       showTurnNarratorModal(_myId);
     }
   }
-  // Auto-advance and auto-process for GM
-  if(session.country === 'gm'){
+  // Auto-advance for GM only (setup → collecting transition)
+  if(session.country === 'gm' && GS.phase === 'setup'){
     const playerCount = Object.keys(GS.slots||{}).length;
-    if(GS.phase === 'setup' && playerCount > 0){
-      advanceTurn(); return;
-    }
-    if(GS.phase === 'collecting' && playerCount > 0){
-      // Count only slotted countries (exclude gm seat) — ignores ghost GS.countries entries
-      const slottedIds = Object.keys(GS.slots||{}).filter(id => id !== 'gm');
-      const total = slottedIds.length;
-      const submitted = slottedIds.filter(id => GS.countries[id]?.submitted).length;
-      // Guard: only process each turn number once (prevents double-fire on rapid Firebase events)
-      if(total > 0 && submitted >= total && GS.turn !== _lastAutoProcessedTurn){
-        _lastAutoProcessedTurn = GS.turn;
-        processTurn(); return;
-      }
+    if(playerCount > 0){ advanceTurn(); return; }
+  }
+  // Auto-process when all players submitted — ANY client in a room can trigger this
+  // (GM may not be logged in, so we can't restrict to GM-only)
+  if(_roomCode && GS.phase === 'collecting'){
+    const slottedIds = Object.keys(GS.slots||{}).filter(id => id !== 'gm');
+    const total = slottedIds.length;
+    const submitted = slottedIds.filter(id => GS.countries[id]?.submitted).length;
+    // Guard: only process each turn once per client (prevents double-fire on rapid Firebase events)
+    if(total > 0 && submitted >= total && GS.turn !== _lastAutoProcessedTurn){
+      _lastAutoProcessedTurn = GS.turn;
+      processTurn(true); return; // internal=true bypasses GM-only guard
     }
   }
   // Always refresh GM console for GM (they need real-time action updates)
