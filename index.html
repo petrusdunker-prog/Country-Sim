@@ -2026,12 +2026,15 @@ const MARKET_RESOURCES = {
   food:         { label:'Food',                icon:'🌾', basePrice:2,  field:'food'         },
   water:        { label:'Water',               icon:'💧', basePrice:2,  field:'water'         },
   minerals:     { label:'Minerals',            icon:'⛏️', basePrice:4,  field:'minerals'      },
-  construction: { label:'Construction Mats',   icon:'🧱', basePrice:3,  field:'construction'  },
+  construction: { label:'Construction Mats',   icon:'🧱', basePrice:3,  field:'construction',  isStockpile:true, stockpileKey:'constructionMats' },
   mfgGoods:     { label:'Manufactured Goods',  icon:'🏭', basePrice:8,  field:'mfgGoods'      },
   services:     { label:'Services',            icon:'💼', basePrice:5,  field:'services'      },
   energy:       { label:'Energy',              icon:'⚡', basePrice:6,  field:'energy',       isStockpile:true },
   critMinerals: { label:'Critical Minerals',   icon:'💎', basePrice:10, field:'critMinerals', isStockpile:true },
 };
+// Helper: resolve the actual stockpile property name for a MARKET_RESOURCES key
+// e.g. 'construction' → 'constructionMats', 'energy' → 'energy'
+function mktSKey(resKey){ return MARKET_RESOURCES[resKey]?.stockpileKey || resKey; }
 
 const INITIAL_STATE = {
   turn:0, date:'January 2025', phase:'setup',
@@ -8188,9 +8191,10 @@ function renderMarketTab(){
     <div class="section-title" style="margin-bottom:8px">Your Tradeable Resources</div>
     <div class="mkt-res-row">
       ${Object.entries(MARKET_RESOURCES).map(([key,r])=>{
-        const stock = r.isStockpile ? (myC.stockpile?.[key]||0) : (myC.resources[key]||0);
-        const bal   = r.isStockpile ? (myC.stockpileRate?.[key]||0) : (myC.resourceBalance?.[key]||0);
-        const balLabel = r.isStockpile ? `+${bal}/t stockpile` : `${bal>0?'+':''}${bal}/t`;
+        const sk    = mktSKey(key);
+        const stock = r.isStockpile ? (myC.stockpile?.[sk]||0) : (myC.resources[key]||0);
+        const bal   = r.isStockpile ? (myC.stockpileRate?.[sk]||0) : (myC.resourceBalance?.[key]||0);
+        const balLabel = r.isStockpile ? `+${bal}/t` : `${bal>0?'+':''}${bal}/t`;
         return `<div class="mkt-res-chip">
           <span style="font-size:18px">${r.icon}</span>
           <span class="rc-val">${stock}</span>
@@ -8212,7 +8216,7 @@ function renderMarketTab(){
       <div class="mkt-field">
         <label>Resource</label>
         <select id="mktRes">
-          ${Object.entries(MARKET_RESOURCES).map(([k,r])=>`<option value="${k}">${r.icon} ${r.label} (${myC.resources[k]||0} in stock)</option>`).join('')}
+          ${Object.entries(MARKET_RESOURCES).map(([k,r])=>{const amt=r.isStockpile?(myC.stockpile?.[mktSKey(k)]||0):(myC.resources[k]||0);return `<option value="${k}">${r.icon} ${r.label} (${amt})</option>`;}).join('')}
         </select>
       </div>
       <div class="mkt-field">
@@ -8322,9 +8326,10 @@ function postMarketOffer(){
   const c = GS.countries[session.country];
   const mktRes = MARKET_RESOURCES[resource];
   if(!c||!resource||qty<1||priceEach<1){ toast('Fill in all market fields','error'); return; }
-  const haveAmt = mktRes?.isStockpile ? (c.stockpile?.[resource]||0) : (c.resources[resource]||0);
+  const _sk = mktRes?.isStockpile ? mktSKey(resource) : null;
+  const haveAmt = _sk ? (c.stockpile?.[_sk]||0) : (c.resources[resource]||0);
   if(haveAmt < qty){ toast(`Not enough ${mktRes?.label||resource} (have ${haveAmt})`, 'error'); return; }
-  if(mktRes?.isStockpile){ c.stockpile[resource] -= qty; } else { c.resources[resource] -= qty; } // held in escrow
+  if(_sk && c.stockpile){ c.stockpile[_sk] -= qty; } else { c.resources[resource] -= qty; } // held in escrow
   if(!GS.market) GS.market={offers:[]};
   GS.market.offers.push({
     id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
@@ -8370,7 +8375,7 @@ function buyMarketOffer(offerId){
   if(!GS.newsBoard) GS.newsBoard=[];
   if(route.turns === 0){
     // Same continent — instant delivery
-    if(r?.isStockpile && myC.stockpile){ myC.stockpile[o.resource] = (myC.stockpile[o.resource]||0) + o.qty; }
+    if(r?.isStockpile && myC.stockpile){ const _sk=mktSKey(o.resource); myC.stockpile[_sk]=(myC.stockpile[_sk]||0)+o.qty; }
     else { myC.resources[o.resource] = (myC.resources[o.resource]||0) + o.qty; }
     GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
       title:`🤝 Trade: ${session.country} buys ${r?.label||o.resource} from ${o.seller}`,
@@ -8407,7 +8412,7 @@ function cancelMarketOffer(offerId){
   const c = GS.countries[session.country];
   if(c){
     const mktRes = MARKET_RESOURCES[o.resource];
-    if(mktRes?.isStockpile && c.stockpile){ c.stockpile[o.resource] = (c.stockpile[o.resource]||0) + o.qty; }
+    if(mktRes?.isStockpile && c.stockpile){ const _sk=mktSKey(o.resource); c.stockpile[_sk]=(c.stockpile[_sk]||0)+o.qty; }
     else { c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty; }
   }
   GS.market.offers.splice(idx, 1);
@@ -8960,7 +8965,7 @@ function processMarketDeliveries(){
     const delivered = Math.max(1, Math.round(d.qty * (1 - totalLossPct)));
     const lost = d.qty - delivered;
     const _dRes = MARKET_RESOURCES[d.resource];
-    if(_dRes?.isStockpile && buyerC.stockpile){ buyerC.stockpile[d.resource] = (buyerC.stockpile[d.resource]||0) + delivered; }
+    if(_dRes?.isStockpile && buyerC.stockpile){ const _sk=mktSKey(d.resource); buyerC.stockpile[_sk]=(buyerC.stockpile[_sk]||0)+delivered; }
     else { buyerC.resources[d.resource] = (buyerC.resources[d.resource]||0) + delivered; }
     if(!GS.newsBoard) GS.newsBoard=[];
     const r = MARKET_RESOURCES[d.resource];
@@ -8986,7 +8991,7 @@ function processMarketTurn(){
       const c = GS.countries[o.seller];
       if(c){
         const mktRes = MARKET_RESOURCES[o.resource];
-        if(mktRes?.isStockpile && c.stockpile){ c.stockpile[o.resource] = (c.stockpile[o.resource]||0) + o.qty; }
+        if(mktRes?.isStockpile && c.stockpile){ const _sk=mktSKey(o.resource); c.stockpile[_sk]=(c.stockpile[_sk]||0)+o.qty; }
         else { c.resources[o.resource] = (c.resources[o.resource]||0) + o.qty; }
       }
     }
