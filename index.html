@@ -2161,6 +2161,8 @@ function normalizeState(s){
   s.events     = s.events     || [];
   s.newsBoard  = s.newsBoard  || [];
   s.chat       = s.chat       || [];
+  if(!s.market) s.market = {offers:[], negotiations:[], inTransit:[]};
+  if(!s.market.inTransit) s.market.inTransit = [];
   if(s.turnDeadline === undefined) s.turnDeadline = null;
   if(!s.slots) s.slots = {};
   if(!s.countries) s.countries = {};
@@ -5026,6 +5028,7 @@ function processTurn(internal=false){
     c.actions = [{category:'',actionId:'',note:'',warTarget:''}];
   });
   processMarketTurn();
+  processMarketDeliveries();
   processPopulationGrowth();
   processSanctions();
   resolveWars();
@@ -5090,6 +5093,25 @@ function processTurn(internal=false){
     }
   });
   aiRespondToProposals();
+  // AI war declarations — per-country roll, rival-targeting, min turn 4, max 3 active wars
+  const _warPersonality = AI_PERSONALITIES[GS.difficulty||'normal'];
+  if(GS.turn >= 4 && (GS.wars||[]).filter(w=>w.status==='active').length < 3){
+    Object.entries(GS.countries).forEach(([atkId, atkC])=>{
+      if(!GS.slots[atkId]?.isAI || (atkC.atWar||[]).length > 0 || (atkC.military.battalions||0) < 60) return;
+      const profile = COUNTRY_AI_PROFILES[atkId];
+      const myWarChance = _warPersonality.warChance * 0.5 * (profile?.warBias ?? 1.0);
+      if(Math.random() >= myWarChance) return;
+      if((GS.wars||[]).filter(w=>w.status==='active').length >= 3) return;
+      // Prefer rivals in-game, fall back to random
+      const inGame = Object.keys(GS.countries).filter(tid=>
+        tid !== atkId && !(atkC.atWar||[]).includes(tid) &&
+        !(GS.wars||[]).some(w=>w.status==='active'&&((w.attacker===atkId&&w.defender===tid)||(w.attacker===tid&&w.defender===atkId)))
+      );
+      const rivals = inGame.filter(tid=>(profile?.rivalBias||[]).includes(tid));
+      const pool = rivals.length ? rivals : inGame;
+      if(pool.length) declareWar(atkId, pool[Math.floor(Math.random()*pool.length)]);
+    });
+  }
   generateTurnEvents(GS.turn);
   const _chron=generateTurnChronicle(GS.turn-1);
   if(_chron){ if(!GS.newsBoard)GS.newsBoard=[]; GS.newsBoard.unshift(_chron); }
@@ -6205,6 +6227,7 @@ function aiProcessTurn(){
       c.actions = [{category:'',actionId:'',note:'',warTarget:''}];
     });
     processMarketTurn();
+    processMarketDeliveries();
     processPopulationGrowth();
     processSanctions();
     resolveWars();
@@ -6418,6 +6441,72 @@ const CONTINENT_ADJ = {
   'Europe':['Africa','Middle East'],'Middle East':['Europe','Africa','Asia'],
   'Africa':['Europe','Middle East'],'Asia':['Middle East','Oceania'],'Oceania':['Asia'],
 };
+// Trade route matrix: delay in turns + guaranteed loss % + piracy risk % by continent pair
+const CONTINENT_ROUTES = {
+  'North America':{ 'North America':{turns:0,loss:0,piracy:0,route:'Local'},        'South America':{turns:1,loss:2,piracy:1,route:'🚢 Caribbean Sea'},
+    'Europe'      :{turns:2,loss:4,piracy:0,route:'🚢 North Atlantic'},
+    'Africa'      :{turns:3,loss:7,piracy:2,route:'🚢 Atlantic + Gulf of Guinea'},
+    'Middle East' :{turns:3,loss:8,piracy:1,route:'🚢 Atlantic → Suez'},
+    'Asia'        :{turns:3,loss:9,piracy:3,route:'🚢 Trans-Pacific'},
+    'Oceania'     :{turns:3,loss:9,piracy:1,route:'🚢 Pacific'},
+  },
+  'South America':{ 'North America':{turns:1,loss:2,piracy:1,route:'🚢 Caribbean'},
+    'South America':{turns:0,loss:0,piracy:0,route:'Local'},
+    'Europe'      :{turns:2,loss:5,piracy:0,route:'🚢 South Atlantic'},
+    'Africa'      :{turns:2,loss:5,piracy:3,route:'🚢 South Atlantic'},
+    'Middle East' :{turns:3,loss:9,piracy:3,route:'🚢 Cape → Suez'},
+    'Asia'        :{turns:3,loss:10,piracy:2,route:'🚢 Trans-Pacific'},
+    'Oceania'     :{turns:3,loss:8,piracy:1,route:'🚢 South Pacific'},
+  },
+  'Europe':{ 'North America':{turns:2,loss:4,piracy:0,route:'🚢 North Atlantic'},
+    'South America':{turns:2,loss:5,piracy:0,route:'🚢 South Atlantic'},
+    'Europe'      :{turns:0,loss:0,piracy:0,route:'Local'},
+    'Africa'      :{turns:1,loss:3,piracy:2,route:'🚢 Mediterranean'},
+    'Middle East' :{turns:1,loss:2,piracy:1,route:'🚢 Med → Suez Canal'},
+    'Asia'        :{turns:2,loss:6,piracy:5,route:'🚢 Suez → Gulf of Aden ⚠️'},
+    'Oceania'     :{turns:3,loss:9,piracy:5,route:'🚢 Suez → Indian Ocean ⚠️'},
+  },
+  'Africa':{ 'North America':{turns:3,loss:7,piracy:2,route:'🚢 Atlantic'},
+    'South America':{turns:2,loss:5,piracy:3,route:'🚢 South Atlantic'},
+    'Europe'      :{turns:1,loss:3,piracy:2,route:'🚢 Mediterranean'},
+    'Africa'      :{turns:0,loss:0,piracy:0,route:'Local'},
+    'Middle East' :{turns:1,loss:4,piracy:6,route:'🚢 Red Sea ⚠️ pirate waters'},
+    'Asia'        :{turns:2,loss:8,piracy:7,route:'🚢 Gulf of Aden ⚠️ pirate zone'},
+    'Oceania'     :{turns:3,loss:10,piracy:5,route:'🚢 Indian Ocean ⚠️'},
+  },
+  'Middle East':{ 'North America':{turns:3,loss:8,piracy:1,route:'🚢 Suez → Atlantic'},
+    'South America':{turns:3,loss:9,piracy:3,route:'🚢 Cape of Good Hope'},
+    'Europe'      :{turns:1,loss:2,piracy:1,route:'🚢 Suez → Med'},
+    'Africa'      :{turns:1,loss:4,piracy:6,route:'🚢 Red Sea ⚠️ pirate waters'},
+    'Middle East' :{turns:0,loss:0,piracy:0,route:'Local'},
+    'Asia'        :{turns:1,loss:2,piracy:1,route:'🚢🚛 Persian Gulf / overland'},
+    'Oceania'     :{turns:2,loss:6,piracy:3,route:'🚢 Indian Ocean'},
+  },
+  'Asia':{ 'North America':{turns:3,loss:9,piracy:3,route:'🚢 Trans-Pacific'},
+    'South America':{turns:3,loss:10,piracy:2,route:'🚢 Trans-Pacific'},
+    'Europe'      :{turns:2,loss:6,piracy:5,route:'🚢 Indian Ocean → Suez ⚠️'},
+    'Africa'      :{turns:2,loss:8,piracy:7,route:'🚢 Gulf of Aden ⚠️ pirate zone'},
+    'Middle East' :{turns:1,loss:2,piracy:1,route:'🚢🚛 Persian Gulf / overland'},
+    'Asia'        :{turns:0,loss:0,piracy:0,route:'Local'},
+    'Oceania'     :{turns:1,loss:4,piracy:4,route:'🚢 South China Sea ⚠️'},
+  },
+  'Oceania':{ 'North America':{turns:3,loss:9,piracy:1,route:'🚢 Pacific'},
+    'South America':{turns:3,loss:8,piracy:1,route:'🚢 South Pacific'},
+    'Europe'      :{turns:3,loss:9,piracy:5,route:'🚢 Indian Ocean → Suez ⚠️'},
+    'Africa'      :{turns:3,loss:10,piracy:5,route:'🚢 Indian Ocean ⚠️'},
+    'Middle East' :{turns:2,loss:6,piracy:3,route:'🚢 Indian Ocean'},
+    'Asia'        :{turns:1,loss:4,piracy:4,route:'🚢 South China Sea ⚠️'},
+    'Oceania'     :{turns:0,loss:0,piracy:0,route:'Local'},
+  },
+};
+
+function getTradeRoute(buyerId, sellerId){
+  const buyerCont  = PLAYABLE_COUNTRIES[buyerId]?.continent  || PLAYER_META[buyerId]?.continent;
+  const sellerCont = PLAYABLE_COUNTRIES[sellerId]?.continent || PLAYER_META[sellerId]?.continent;
+  if(!buyerCont || !sellerCont || buyerCont === sellerCont) return {turns:0,loss:0,piracy:0,route:'Local'};
+  return CONTINENT_ROUTES[buyerCont]?.[sellerCont] || {turns:2,loss:5,piracy:2,route:'🚢 Overseas'};
+}
+
 function logisticsFactor(ac,dc){
   if(ac===dc) return 1.0;
   if((CONTINENT_ADJ[ac]||[]).includes(dc)) return 0.82;
@@ -7913,6 +8002,7 @@ function renderMarketTab(){
     const sellerM = PLAYER_META[o.seller];
     const turnsLeft = Math.max(0, 3 - ((GS.turn||0) - (o.postedTurn||0)));
     const dipBadge = !isOwn ? diplomaticModifierLabel(dipMod) : null;
+    const routeInfo = (!isOwn && myId && o.seller) ? getTradeRoute(myId, o.seller) : null;
     const priceDisplay = isOwn
       ? `<span style="color:var(--gold)">${o.priceEach} eco</span> each`
       : blocked
@@ -7926,6 +8016,12 @@ function renderMarketTab(){
         <div class="res-name">${r.label}${dipBadge?` <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${dipBadge.color}22;color:${dipBadge.color};border:1px solid ${dipBadge.color}44" title="${dipBadge.title}">${dipBadge.text}</span>`:''}</div>
         <div class="res-detail">Qty: <strong>${o.qty}</strong> × ${priceDisplay}</div>
         <div class="res-seller">${sellerM?sellerM.flag+' ':''}<strong>${o.seller}</strong>${o.sellerIsAI?' 🤖 AI':''} · ⏱ ${turnsLeft}t left</div>
+        ${routeInfo && routeInfo.turns > 0 ? `<div style="font-size:10px;margin-top:3px;display:flex;gap:5px;flex-wrap:wrap">
+  <span style="background:#1a2a1a;border:1px solid #2dc65344;border-radius:8px;padding:1px 7px;color:#4caf50">⏱ ${routeInfo.turns} turn${routeInfo.turns>1?'s':''} delivery</span>
+  <span style="background:#2a1a0a;border:1px solid #f4a26144;border-radius:8px;padding:1px 7px;color:var(--orange)">📉 ~${routeInfo.loss}% loss</span>
+  ${routeInfo.piracy > 0 ? `<span style="background:#2a0a0a;border:1px solid #e05c6b44;border-radius:8px;padding:1px 7px;color:var(--red)">🏴‍☠️ ${routeInfo.piracy}% piracy risk</span>` : ''}
+  <span style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:1px 7px;color:var(--text-dim);font-size:9px">${routeInfo.route}</span>
+</div>` : routeInfo ? `<div style="font-size:10px;color:var(--green);margin-top:2px">✅ Same continent — instant delivery</div>` : ''}
       </div>
       <span class="market-total" style="color:${blocked?'var(--red)':dipMod<1?'var(--green)':dipMod>1?'var(--orange)':'var(--gold)'}">${blocked?'BLOCKED':effTotal+' eco'}</span>
       <div class="market-action">
@@ -7954,7 +8050,27 @@ function renderMarketTab(){
         <div class="events-col-header">📋 My Offers <span style="font-weight:400;color:var(--text-dim)">(${myOffers.length})</span></div>
         ${myOffers.length ? myOffers.map(o=>renderOffer(o,true)).join('') : '<div class="market-empty">You have no active sell offers.</div>'}
       </div>
-    </div>`;
+    </div>
+    ${((GS.market?.inTransit||[]).filter(d=>d.buyer===myId)).length ? `
+  <div style="margin-top:14px">
+    <div class="events-col-header">📦 In Transit <span style="font-weight:400;color:var(--text-dim)">(${(GS.market.inTransit||[]).filter(d=>d.buyer===myId).length} shipment${(GS.market.inTransit||[]).filter(d=>d.buyer===myId).length!==1?'s':''})</span></div>
+    ${(GS.market.inTransit||[]).filter(d=>d.buyer===myId).map(d=>{
+      const r=MARKET_RESOURCES[d.resource]||{label:d.resource,icon:'📦'};
+      const turnsLeft=Math.max(0,d.deliveryTurn-(GS.turn||0));
+      return `<div class="market-offer" style="border-left:3px solid var(--accent);opacity:.85">
+        <span class="market-res-icon">${r.icon}</span>
+        <div class="market-info">
+          <div class="res-name">${r.label} <span style="font-size:10px;background:var(--accent)22;color:var(--accent);border-radius:8px;padding:1px 6px">IN TRANSIT</span></div>
+          <div class="res-detail">Qty: <strong>${d.qty}</strong> · from <strong>${d.seller}</strong> · paid ${d.totalEco} eco</div>
+          <div class="res-seller" style="font-size:10px;color:var(--text-dim)">${d.route} · est. loss ${d.baseLoss}%${d.piracy>0?` + up to ${d.piracy}% piracy`:''}</div>
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-size:18px;font-weight:700;color:var(--accent)">${turnsLeft}</div>
+          <div style="font-size:10px;color:var(--text-dim)">turn${turnsLeft!==1?'s':''} left</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>` : ''}`;
 }
 
 function postMarketOffer(){
@@ -7999,22 +8115,43 @@ function buyMarketOffer(offerId){
   if(myC.economy.pool < total){ toast(`Need ${total} eco — you have ${myC.economy.pool}`,'error'); return; }
   // Transfer eco → resources (seller receives actual paid amount, not listed price)
   myC.economy.pool -= total;
-  myC.resources[o.resource] = (myC.resources[o.resource]||0) + o.qty;
   const sellerC = GS.countries[o.seller];
   if(sellerC) sellerC.economy.pool += total;
   GS.market.offers.splice(idx, 1);
   const r = MARKET_RESOURCES[o.resource];
+  const route = getTradeRoute(session.country, o.seller);
   const dipLabel  = dipMod !== 1.0 ? (dipMod < 1 ? ` (−${Math.round((1-dipMod)*100)}% diplo discount)` : ` (+${Math.round((dipMod-1)*100)}% rival surcharge)`) : '';
-  const stabLabel = stabMod > 0 ? ` (+${Math.round(stabMod*100)}% instability tax)` : stabMod < 0 ? ` (−${Math.round(-stabMod*100)}% thriving discount)` : '';
+  const stabLabel = stabMod > 0 ? ` (+${Math.round(stabMod*100)}% instability tax)` : '';
   const inflLabel = inflMod > 0.01 ? ` (+${Math.round(inflMod*100)}% inflation)` : '';
   const defLabel  = defMod > 0 ? ` (+50% debt default penalty)` : '';
   if(!GS.newsBoard) GS.newsBoard=[];
-  GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
-    title:`🤝 Trade: ${session.country} buys ${r?.label||o.resource} from ${o.seller}`,
-    body:`${session.country} purchased ${o.qty} units of ${r?.label||o.resource} from ${o.seller} for ${total} eco (listed: ${listed})${dipLabel}${stabLabel}${inflLabel}${defLabel}.`});
-  pushState();
-  const discount = listed !== total ? (total < listed ? ` 💚 saved ${listed-total} eco` : ` 🔴 +${total-listed} eco surcharge`) : '';
-  toast(`✅ Bought ${o.qty}× ${r?.label||o.resource} for ${total} eco${discount}`, total < listed ? 'success' : 'info');
+  if(route.turns === 0){
+    // Same continent — instant delivery
+    myC.resources[o.resource] = (myC.resources[o.resource]||0) + o.qty;
+    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
+      title:`🤝 Trade: ${session.country} buys ${r?.label||o.resource} from ${o.seller}`,
+      body:`${session.country} purchased ${o.qty} units of ${r?.label||o.resource} from ${o.seller} for ${total} eco${dipLabel}${stabLabel}${inflLabel}${defLabel}. Route: ${route.route} — instant delivery.`});
+    pushState();
+    const discount = listed !== total ? (total < listed ? ` 💚 saved ${listed-total} eco` : ` 🔴 +${total-listed} eco surcharge`) : '';
+    toast(`✅ Bought ${o.qty}× ${r?.label||o.resource} for ${total} eco${discount} — delivered instantly`, total < listed ? 'success' : 'info');
+  } else {
+    // Cross-continent — queued delivery
+    if(!GS.market.inTransit) GS.market.inTransit = [];
+    GS.market.inTransit.push({
+      id: Date.now().toString(36)+'_tr',
+      buyer: session.country, seller: o.seller,
+      resource: o.resource, qty: o.qty,
+      baseLoss: route.loss, piracy: route.piracy,
+      deliveryTurn: GS.turn + route.turns,
+      totalEco: total,
+      route: route.route,
+    });
+    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'market',
+      title:`📦 Order placed: ${session.country} → ${o.qty}× ${r?.label||o.resource} from ${o.seller}`,
+      body:`${session.country} paid ${total} eco for ${o.qty} units of ${r?.label||o.resource} from ${o.seller}. Route: ${route.route}. Expected delivery: Turn ${GS.turn+route.turns}. Est. loss: ${route.loss}%${route.piracy > 0 ? ` + up to ${route.piracy}% piracy risk` : ''}.${dipLabel}${stabLabel}${inflLabel}${defLabel}`});
+    pushState();
+    toast(`📦 Order placed — ${o.qty}× ${r?.label||o.resource} in transit via ${route.route} · arrives Turn ${GS.turn+route.turns} · est. ${route.loss}% loss${route.piracy>0?` + up to ${route.piracy}% piracy`:''}`, 'info');
+  }
   renderMarketTab();
 }
 
@@ -8563,6 +8700,32 @@ function diplomaticModifierLabel(mod){
   if(mod >= 1.35)  return { text:'🚫 Sanctioned +35%', color:'var(--red)', title:'Sanctions surcharge: 35% premium' };
   if(mod >= 1.20)  return { text:'⚔️ Rival +20%', color:'var(--orange)', title:'Rival nation surcharge: 20% premium' };
   return null;
+}
+
+function processMarketDeliveries(){
+  if(!GS?.market?.inTransit?.length) return;
+  const ready = GS.market.inTransit.filter(d => d.deliveryTurn <= GS.turn);
+  GS.market.inTransit = GS.market.inTransit.filter(d => d.deliveryTurn > GS.turn);
+  ready.forEach(d => {
+    const buyerC = GS.countries[d.buyer]; if(!buyerC) return;
+    // Apply piracy loss on arrival
+    const piracyRoll = d.piracy > 0 ? Math.random() * d.piracy / 100 : 0;
+    const totalLossPct = (d.baseLoss / 100) + piracyRoll;
+    const delivered = Math.max(1, Math.round(d.qty * (1 - totalLossPct)));
+    const lost = d.qty - delivered;
+    buyerC.resources[d.resource] = (buyerC.resources[d.resource]||0) + delivered;
+    if(!GS.newsBoard) GS.newsBoard=[];
+    const r = MARKET_RESOURCES[d.resource];
+    const pirateNote = lost > 0 ? ` (${lost} unit${lost>1?'s':''} lost to ${piracyRoll > 0.02 ? 'piracy' : 'spoilage/transit'})` : '';
+    GS.newsBoard.unshift({id:Date.now().toString(36)+'_del',turn:GS.turn,type:'event',category:'market',
+      title:`📦 Delivery arrived: ${r?.label||d.resource} → ${d.buyer}`,
+      body:`${delivered} unit${delivered>1?'s':''} of ${r?.label||d.resource} from ${d.seller} delivered to ${d.buyer}${pirateNote}. Paid ${d.totalEco} eco on purchase.`});
+    // Notify via turn results if buyer is a player
+    if(GS.turnResults?.[d.buyer]){
+      if(!GS.turnResults[d.buyer].deliveries) GS.turnResults[d.buyer].deliveries = [];
+      GS.turnResults[d.buyer].deliveries.push({resource:d.resource, qty:delivered, lost, from:d.seller});
+    }
+  });
 }
 
 // Called once per turn processing to expire stale offers and run AI trading
@@ -9450,18 +9613,23 @@ function submitAiTurns(){
     c.submitted = true;
   });
 
-  // AI war declarations (limited by difficulty war chance)
-  if(Math.random() < personality.warChance){
-    const candidates = Object.entries(GS.countries)
-      .filter(([id,c])=>GS.slots[id]?.isAI && (c.atWar||[]).length===0 && (c.military.battalions||0)>=60);
-    if(candidates.length){
-      const [atkId, atkC] = candidates[Math.floor(Math.random()*candidates.length)];
-      const targets = Object.keys(GS.countries).filter(tid=>
-        tid!==atkId && !(atkC.atWar||[]).includes(tid) &&
+  // AI war declarations — per-country roll, rival-targeting, min turn 4, max 3 active wars
+  if(GS.turn >= 4 && (GS.wars||[]).filter(w=>w.status==='active').length < 3){
+    Object.entries(GS.countries).forEach(([atkId, atkC])=>{
+      if(!GS.slots[atkId]?.isAI || (atkC.atWar||[]).length > 0 || (atkC.military.battalions||0) < 60) return;
+      const profile = COUNTRY_AI_PROFILES[atkId];
+      const myWarChance = personality.warChance * 0.5 * (profile?.warBias ?? 1.0);
+      if(Math.random() >= myWarChance) return;
+      if((GS.wars||[]).filter(w=>w.status==='active').length >= 3) return;
+      // Prefer rivals in-game, fall back to random
+      const inGame = Object.keys(GS.countries).filter(tid=>
+        tid !== atkId && !(atkC.atWar||[]).includes(tid) &&
         !(GS.wars||[]).some(w=>w.status==='active'&&((w.attacker===atkId&&w.defender===tid)||(w.attacker===tid&&w.defender===atkId)))
       );
-      if(targets.length) declareWar(atkId, targets[Math.floor(Math.random()*targets.length)]);
-    }
+      const rivals = inGame.filter(tid=>(profile?.rivalBias||[]).includes(tid));
+      const pool = rivals.length ? rivals : inGame;
+      if(pool.length) declareWar(atkId, pool[Math.floor(Math.random()*pool.length)]);
+    });
   }
 
   // AI espionage (hard mode only)
@@ -9596,6 +9764,7 @@ function _runSoloTurnBody(){
     c.actions=[{category:'',actionId:'',note:'',warTarget:''}];
   });
   processMarketTurn();
+  processMarketDeliveries();
   processPopulationGrowth();
   processSanctions();
   resolveWars(); processProxyWars(); processTariffs(); updateDynamicPrices();
