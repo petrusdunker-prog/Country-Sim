@@ -59,6 +59,8 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px
 .card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .card-flag{font-size:26px}.card-name{font-size:15px;font-weight:700}.card-player{font-size:11px;color:var(--text-dim)}
 .card-gov{margin-left:auto;font-size:10px;background:var(--surface2);padding:2px 7px;border-radius:20px;border:1px solid var(--border2)}
+.gov-clickable{cursor:pointer;transition:border-color .15s,background .15s}
+.gov-clickable:hover{border-color:var(--accent);background:var(--surface3,var(--surface2));color:var(--accent)}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px}
 .stat-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:6px 8px}
 .stat-box .label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
@@ -1609,6 +1611,116 @@ const DEV_TIER = {
 
 const GOVERNMENT_TYPES = ['Democracy','Republic','Federal Republic','Constitutional Monarchy','Monarchy','Dictatorship','Military Junta','Communism','Oligarchy','Technocracy','Theocracy','Presidential Republic'];
 
+// ── Government type effects applied every turn ─────────────────────────────
+// stabilityBonus: flat stability added/removed per turn
+// approvalBonus:  flat approval added/removed per turn
+// prestigeBonus:  flat prestige added/removed per turn
+// incomeMod:      multiplier applied to netIncome pool contribution (e.g. 0.10 = +10%)
+// upkeepMod:      multiplier on total military upkeep (+0.10 = +10% extra cost)
+// corruptionMod:  flat corruption added/removed per turn
+// techMod:        multiplier on tech research progress (0.15 = +15% faster)
+// warCostExtra:   extra stability removed per turn while at war (negative = less cost)
+// tradeAcceptMod: flat modifier added to AI trade-deal acceptance rolls
+// allyAcceptMod:  flat modifier added to AI alliance acceptance rolls
+const GOVERNMENT_EFFECTS = {
+  'Democracy': {
+    icon:'🗳️', color:'#4a90d9',
+    stabilityBonus:1, approvalBonus:1, prestigeBonus:1,
+    incomeMod:0, upkeepMod:0.10, corruptionMod:-8, techMod:0,
+    warCostExtra:2, tradeAcceptMod:0.08, allyAcceptMod:0.10,
+    pros:['+1 stability/turn','+1 approval/turn','+1 prestige/turn','−8 corruption','Better trade & ally acceptance'],
+    cons:['+10% military upkeep','Wars drain +2 extra stability/turn'],
+  },
+  'Republic': {
+    icon:'🏛️', color:'#6ca0c8',
+    stabilityBonus:0, approvalBonus:0, prestigeBonus:0,
+    incomeMod:0.05, upkeepMod:0, corruptionMod:-5, techMod:0,
+    warCostExtra:0, tradeAcceptMod:0.05, allyAcceptMod:0.05,
+    pros:['+5% net income','−5 corruption','Moderate trade & ally bonuses'],
+    cons:['No major penalties — balanced government'],
+  },
+  'Federal Republic': {
+    icon:'🏛️', color:'#5b9bd5',
+    stabilityBonus:1, approvalBonus:0, prestigeBonus:0,
+    incomeMod:0.08, upkeepMod:0, corruptionMod:-5, techMod:0.05,
+    warCostExtra:1, tradeAcceptMod:0.05, allyAcceptMod:0.05,
+    pros:['+1 stability/turn','+8% net income','+5% tech speed','−5 corruption'],
+    cons:['Wars drain +1 extra stability/turn (public opposition)'],
+  },
+  'Constitutional Monarchy': {
+    icon:'👑', color:'#c0a040',
+    stabilityBonus:1, approvalBonus:0, prestigeBonus:2,
+    incomeMod:0, upkeepMod:0, corruptionMod:-3, techMod:0,
+    warCostExtra:0, tradeAcceptMod:0.05, allyAcceptMod:0.10,
+    pros:['+1 stability/turn','+2 prestige/turn','Strong ally acceptance','−3 corruption'],
+    cons:['No income bonus — traditional structure limits economic growth'],
+  },
+  'Monarchy': {
+    icon:'♔', color:'#b8860b',
+    stabilityBonus:0, approvalBonus:-1, prestigeBonus:2,
+    incomeMod:0, upkeepMod:-0.10, corruptionMod:5, techMod:-0.05,
+    warCostExtra:-1, tradeAcceptMod:0, allyAcceptMod:0.05,
+    pros:['+2 prestige/turn','−10% military upkeep','Wars cost −1 less stability/turn'],
+    cons:['−1 approval/turn (divine right friction)','+5 corruption','−5% tech speed'],
+  },
+  'Dictatorship': {
+    icon:'🔱', color:'#c04040',
+    stabilityBonus:-1, approvalBonus:-2, prestigeBonus:-1,
+    incomeMod:-0.05, upkeepMod:-0.15, corruptionMod:15, techMod:0,
+    warCostExtra:-2, tradeAcceptMod:-0.10, allyAcceptMod:-0.10,
+    pros:['−15% military upkeep','Wars cost −2 less stability/turn','Rivals respect strength'],
+    cons:['−1 stability/turn','−2 approval/turn','−1 prestige/turn','+15 corruption','Trade & ally penalties'],
+  },
+  'Military Junta': {
+    icon:'⚔️', color:'#8b2020',
+    stabilityBonus:-1, approvalBonus:-2, prestigeBonus:-1,
+    incomeMod:-0.10, upkeepMod:-0.20, corruptionMod:12, techMod:-0.10,
+    warCostExtra:-3, tradeAcceptMod:-0.15, allyAcceptMod:-0.12,
+    pros:['−20% military upkeep','Wars cost −3 less stability/turn','Military actions build faster'],
+    cons:['−1 stability/turn','−2 approval/turn','−10% net income','+12 corruption','−10% tech speed'],
+  },
+  'Communism': {
+    icon:'☭', color:'#cc2222',
+    stabilityBonus:0, approvalBonus:0, prestigeBonus:0,
+    incomeMod:-0.12, upkeepMod:-0.10, corruptionMod:10, techMod:0.05,
+    warCostExtra:0, tradeAcceptMod:-0.15, allyAcceptMod:-0.05,
+    pros:['−10% military upkeep','+5% tech speed','Population grows faster (+50%)'],
+    cons:['−12% net income (state inefficiency)','+10 corruption (party elite)','Trade heavily penalised'],
+  },
+  'Oligarchy': {
+    icon:'💰', color:'#8b6914',
+    stabilityBonus:-1, approvalBonus:-1, prestigeBonus:1,
+    incomeMod:0.15, upkeepMod:0, corruptionMod:20, techMod:0,
+    warCostExtra:0, tradeAcceptMod:0.10, allyAcceptMod:0,
+    pros:['+15% net income (elite extraction)','+1 prestige/turn','Strong trade acceptance'],
+    cons:['−1 stability/turn (inequality)','−1 approval/turn','+20 corruption (highest in game)'],
+  },
+  'Technocracy': {
+    icon:'⚙️', color:'#2da8b0',
+    stabilityBonus:0, approvalBonus:-1, prestigeBonus:1,
+    incomeMod:0.10, upkeepMod:0, corruptionMod:-10, techMod:0.15,
+    warCostExtra:1, tradeAcceptMod:0.05, allyAcceptMod:0,
+    pros:['+15% tech speed','+10% net income','−10 corruption (lowest)','Projects complete faster'],
+    cons:['−1 approval/turn (public feels disconnected)','Wars cost +1 extra stability/turn'],
+  },
+  'Theocracy': {
+    icon:'🕌', color:'#9b7355',
+    stabilityBonus:2, approvalBonus:1, prestigeBonus:1,
+    incomeMod:-0.05, upkeepMod:0, corruptionMod:-5, techMod:-0.15,
+    warCostExtra:-1, tradeAcceptMod:-0.10, allyAcceptMod:-0.08,
+    pros:['+2 stability/turn (religious cohesion)','+1 approval/turn','+1 prestige/turn','−5 corruption'],
+    cons:['−15% tech speed (resistance to secular science)','−5% income','Trade & ally penalties'],
+  },
+  'Presidential Republic': {
+    icon:'🦅', color:'#4a6fa5',
+    stabilityBonus:0, approvalBonus:0, prestigeBonus:1,
+    incomeMod:0.05, upkeepMod:-0.05, corruptionMod:0, techMod:0.05,
+    warCostExtra:0, tradeAcceptMod:0.05, allyAcceptMod:0.05,
+    pros:['+1 prestige/turn','+5% net income','+5% tech speed','−5% military upkeep'],
+    cons:['No major penalties — well-rounded system'],
+  },
+};
+
 // PLAYER_META is built dynamically from GS.slots — do not hardcode here
 let PLAYER_META = {};
 
@@ -2440,7 +2552,7 @@ function renderCountryCard(id){
   const hdr=`<div class="card-header" style="margin-bottom:10px">
     <span class="card-flag">${m.flag}</span>
     <div><div class="card-name">${id}</div><div class="card-player">Player: ${m.player}</div></div>
-    <span class="card-gov">${m.government}</span>
+    <span class="card-gov gov-clickable" onclick="showGovEffects('${id}', this)" title="Click to see government bonuses & penalties">${GOVERNMENT_EFFECTS[m.government]?.icon||''} ${m.government}</span>
   </div>`;
 
   // ── Economy tab ──
@@ -4307,7 +4419,31 @@ function applyCivilWarEffects(c, id){
   }
 }
 
-// ── 4. Defence Pacts ──────────────────────────────────────────
+// ── 4. Government Type Effects ────────────────────────────────
+function applyGovernmentEffects(id, c){
+  if(!c || !GS) return;
+  const govType = GS.slots?.[id]?.government;
+  const eff = GOVERNMENT_EFFECTS[govType];
+  if(!eff) return;
+  // Stability bonus/penalty per turn
+  if(eff.stabilityBonus) c.stability = Math.max(0, Math.min(100, (c.stability||60) + eff.stabilityBonus));
+  // Approval bonus/penalty per turn
+  if(eff.approvalBonus)  c.approval  = Math.max(0, Math.min(100, (c.approval||60)  + eff.approvalBonus));
+  // Prestige bonus/penalty per turn
+  if(eff.prestigeBonus)  c.prestige  = (c.prestige||0) + eff.prestigeBonus;
+  // Income modifier — added directly to pool (income already deposited this turn)
+  if(eff.incomeMod) c.economy.pool = Math.max(0, (c.economy.pool||0) + Math.round((c.economy.netIncome||0) * eff.incomeMod));
+  // Military upkeep modifier — saves or costs extra from pool
+  if(eff.upkeepMod) c.economy.pool = Math.max(0, (c.economy.pool||0) - Math.round((c.economy.militaryUpkeep||0) * eff.upkeepMod));
+  // Corruption drift — corruptionMod is a tendency value, applied at 0.1× per turn
+  if(eff.corruptionMod) c.corruption = Math.max(0, Math.min(100, (c.corruption||20) + eff.corruptionMod * 0.1));
+  // Tech speed — extra research points this turn based on techMod × base research income
+  if(eff.techMod) c.tech.points = (c.tech.points||0) + Math.round((c.tech.researchIncome||3) * eff.techMod);
+  // Extra stability cost when at war (warCostExtra > 0 = extra drain; < 0 = reduced drain)
+  if(eff.warCostExtra && (c.atWar||[]).length > 0) c.stability = Math.max(0, (c.stability||60) - eff.warCostExtra);
+}
+
+// ── 5. Defence Pacts ──────────────────────────────────────────
 function checkDefencePacts(attackerId, defenderId){
   if(!GS || !GS.factions) return;
   GS.factions.forEach(faction => {
@@ -5067,6 +5203,7 @@ function processTurn(internal=false){
     applyPolicyEffects(c, id);
     checkDebtDefault(c, id);
     applyCivilWarEffects(c, id);
+    applyGovernmentEffects(id, c);
     // Apply stability tier income modifier (production bonus/malus, after dev mod)
     { const sfx = stabilityTierEffects(stabilityLabel(c.stability||60).tier);
       if(sfx.incomeMod !== 0){
@@ -6271,6 +6408,7 @@ function aiProcessTurn(){
       applyPolicyEffects(c, id);
       checkDebtDefault(c, id);
       applyCivilWarEffects(c, id);
+      applyGovernmentEffects(id, c);
       { const sfx = stabilityTierEffects(stabilityLabel(c.stability||60).tier);
         if(sfx.incomeMod !== 0){ const mod=Math.round(c.economy.netIncome*sfx.incomeMod); c.economy.netIncome=Math.max(-50,c.economy.netIncome+mod); } }
       { const built = c.militaryBuiltThisTurn||0;
@@ -6901,6 +7039,49 @@ function showObjectivesPopup(id, force){
 }
 
 function closeObjPopup(){ document.getElementById('objPopup').classList.add('hidden'); }
+
+function showGovEffects(id, anchorEl){
+  // Remove any existing gov popup
+  const old = document.getElementById('govEffectsPopup');
+  if(old){ old.remove(); return; }
+  const govType = GS?.slots?.[id]?.government || PLAYER_META[id]?.government;
+  const eff = GOVERNMENT_EFFECTS[govType];
+  if(!eff) return;
+  const prosHTML = eff.pros.map(p=>`<li style="color:var(--green)">✅ ${p}</li>`).join('');
+  const consHTML = eff.cons.map(c=>`<li style="color:var(--red)">⚠️ ${c}</li>`).join('');
+  const pop = document.createElement('div');
+  pop.id = 'govEffectsPopup';
+  pop.style.cssText = `position:fixed;z-index:9000;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;max-width:290px;box-shadow:0 8px 32px rgba(0,0,0,0.45);font-size:12px;`;
+  pop.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:20px">${eff.icon}</span>
+      <div>
+        <div style="font-weight:700;font-size:13px;color:${eff.color}">${govType}</div>
+        <div style="font-size:10px;color:var(--text-dim)">Government — passive effects per turn</div>
+      </div>
+      <button onclick="document.getElementById('govEffectsPopup')?.remove()" style="margin-left:auto;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1">×</button>
+    </div>
+    <div style="margin-bottom:6px;font-weight:600;color:var(--text-dim);text-transform:uppercase;font-size:10px;letter-spacing:.05em">Bonuses</div>
+    <ul style="margin:0 0 10px 0;padding-left:18px;line-height:1.7">${prosHTML}</ul>
+    <div style="margin-bottom:6px;font-weight:600;color:var(--text-dim);text-transform:uppercase;font-size:10px;letter-spacing:.05em">Penalties</div>
+    <ul style="margin:0;padding-left:18px;line-height:1.7">${consHTML}</ul>
+  `;
+  document.body.appendChild(pop);
+  // Position near the anchor element
+  if(anchorEl){
+    const r = anchorEl.getBoundingClientRect();
+    let top = r.bottom + 6, left = r.left;
+    if(left + 300 > window.innerWidth) left = window.innerWidth - 306;
+    if(top + 260 > window.innerHeight) top = r.top - 270;
+    pop.style.top  = Math.max(4, top)  + 'px';
+    pop.style.left = Math.max(4, left) + 'px';
+  } else {
+    pop.style.top = '50%'; pop.style.left = '50%';
+    pop.style.transform = 'translate(-50%,-50%)';
+  }
+  // Auto-close on outside click
+  setTimeout(()=>{ document.addEventListener('click', function _gce(e){ if(!pop.contains(e.target)){ pop.remove(); document.removeEventListener('click',_gce); } }); }, 50);
+}
 
 function checkObjectiveCompletion(){
   if(!GS) return;
@@ -9818,6 +9999,7 @@ function _runSoloTurnBody(){
     applyPolicyEffects(c, id);
     checkDebtDefault(c, id);
     applyCivilWarEffects(c, id);
+    applyGovernmentEffects(id, c);
     { const sfx=stabilityTierEffects(stabilityLabel(c.stability||60).tier);
       if(sfx.incomeMod!==0){ const mod=Math.round(c.economy.netIncome*sfx.incomeMod); c.economy.netIncome=Math.max(-50,c.economy.netIncome+mod); } }
     { const built=c.militaryBuiltThisTurn||0;
