@@ -8810,6 +8810,280 @@ const AI_PERSONALITIES = {
   hard:   { military:0.60, projects:0.15, diplomacy:0.10, tech:0.15, warChance:0.13, spyChance:0.12 },
 };
 
+// ── Per-country AI Personality Profiles ──────────────────────────
+const COUNTRY_AI_PROFILES = {
+  'Russia': {
+    weights: { military:0.60, projects:0.18, diplomacy:0.10, tech:0.12 },
+    warBias: 2.5, tradeAcceptMod: -0.15, allyAcceptMod: -0.10,
+    allyBias: ['China','India','Iran','Belarus','North Korea','Venezuela','Serbia'],
+    rivalBias: ['USA','United Kingdom','Germany','France','Poland','Australia','Japan'],
+    actionBias: ['train_bat','mech_div','nuclear','bomber_wing','fortify','arms_industry'],
+    notes: ['By Kremlin directive','Protecting Russian sovereignty','Restoring Russian sphere of influence',
+            'Special military operation','Strategic deterrence posture','Defending Russian interests abroad'],
+  },
+  'USA': {
+    weights: { military:0.38, projects:0.18, diplomacy:0.28, tech:0.16 },
+    warBias: 0.9, tradeAcceptMod: +0.10, allyAcceptMod: +0.15,
+    allyBias: ['United Kingdom','France','Germany','Japan','South Korea','Australia','Israel','Canada'],
+    rivalBias: ['Russia','China','Iran','North Korea','Venezuela','Cuba'],
+    actionBias: ['carrier','air_wing','bomber_wing','alliance','sanctions','embargo','host_event','build_abm'],
+    notes: ['White House National Security Council','State Department directive','Advancing American interests',
+            'Protecting allied nations','Rules-based international order','Promoting American leadership'],
+  },
+  'China': {
+    weights: { military:0.22, projects:0.38, diplomacy:0.22, tech:0.18 },
+    warBias: 0.6, tradeAcceptMod: +0.22, allyAcceptMod: -0.05,
+    allyBias: ['Russia','Pakistan','Iran','North Korea','Saudi Arabia','Myanmar'],
+    rivalBias: ['USA','Japan','Australia','India'],
+    actionBias: ['trade_deal','infra','mega_proj','major_proj','naval_fleet','factory','port','foreign_investment'],
+    notes: ['Belt and Road Initiative','Central Committee directive','Long-term strategic investment',
+            'Win-win cooperation','Peaceful rise strategy','National rejuvenation agenda'],
+  },
+  'United Kingdom': {
+    weights: { military:0.28, projects:0.24, diplomacy:0.32, tech:0.16 },
+    warBias: 0.7, tradeAcceptMod: +0.12, allyAcceptMod: +0.12,
+    allyBias: ['USA','France','Germany','Australia','Canada','Japan','India'],
+    rivalBias: ['Russia','China','Iran'],
+    actionBias: ['alliance','naval_fleet','air_wing','intel_network','trade_deal','host_event','sanctions'],
+    notes: ["His Majesty's Government",'Cabinet Office directive','Global Britain initiative',
+            'Commonwealth partnership','Five Eyes coordination','Upholding the rules-based order'],
+  },
+  'France': {
+    weights: { military:0.24, projects:0.24, diplomacy:0.36, tech:0.16 },
+    warBias: 0.7, tradeAcceptMod: +0.15, allyAcceptMod: +0.10,
+    allyBias: ['Germany','United Kingdom','Italy','Spain','USA'],
+    rivalBias: ['Russia'],
+    actionBias: ['alliance','host_event','form_faction','diplomatic_summit','nuclear','cultural_exchange'],
+    notes: ['Élysée Palace directive','French strategic autonomy','European sovereignty initiative',
+            'La Grandeur française','Diplomatic offensive','Gaullian foreign policy'],
+  },
+  'Germany': {
+    weights: { military:0.12, projects:0.54, diplomacy:0.24, tech:0.10 },
+    warBias: 0.15, tradeAcceptMod: +0.28, allyAcceptMod: +0.20,
+    allyBias: ['France','USA','United Kingdom','Poland','Netherlands'],
+    rivalBias: ['Russia'],
+    actionBias: ['infra','factory','trade_deal','eco_reform','major_proj','urban_drive','foreign_investment','trade_mission'],
+    notes: ['Federal government directive','Export-led growth strategy','European integration initiative',
+            'Industrial competitiveness plan','Green energy transition','Ordoliberal fiscal policy'],
+  },
+  'India': {
+    weights: { military:0.30, projects:0.28, diplomacy:0.22, tech:0.20 },
+    warBias: 0.8, tradeAcceptMod: +0.05, allyAcceptMod: -0.05,
+    allyBias: ['Russia','USA','Australia','Japan','France'],
+    rivalBias: ['Pakistan','China'],
+    actionBias: ['train_bat','nuclear','mech_div','tech_park','factory','space_program'],
+    notes: ['New Delhi strategic directive','Strategic autonomy doctrine','Non-Alignment 2.0',
+            'Atmanirbhar Bharat initiative','Rising power assertion','Neighbourhood First policy'],
+  },
+  'Japan': {
+    weights: { military:0.18, projects:0.24, diplomacy:0.24, tech:0.34 },
+    warBias: 0.2, tradeAcceptMod: +0.18, allyAcceptMod: +0.18,
+    allyBias: ['USA','South Korea','Australia','United Kingdom','India'],
+    rivalBias: ['China','Russia','North Korea'],
+    actionBias: ['ai_research','quantum','advanced_manufacturing','cyber_program','build_abm','trade_deal','alliance'],
+    notes: ['Cabinet Secretariat directive','Proactive pacifism doctrine','Integrated economic security plan',
+            'Tech sovereignty investment','Free and Open Indo-Pacific','Alliance deepening initiative'],
+  },
+  'Brazil': {
+    weights: { military:0.18, projects:0.42, diplomacy:0.28, tech:0.12 },
+    warBias: 0.3, tradeAcceptMod: +0.22, allyAcceptMod: +0.12,
+    allyBias: ['Argentina','USA','Germany','China','South Africa'],
+    rivalBias: [],
+    actionBias: ['agriculture','logging','mining','trade_deal','infra','eco_reform','tourism'],
+    notes: ['Brasília directive','South-South cooperation','Amazon development strategy',
+            'BRICS initiative','Regional leadership agenda','Resource sovereignty policy'],
+  },
+  'Saudi Arabia': {
+    weights: { military:0.38, projects:0.28, diplomacy:0.22, tech:0.12 },
+    warBias: 1.2, tradeAcceptMod: +0.12, allyAcceptMod: +0.05,
+    allyBias: ['USA','UAE','Egypt','Pakistan','France'],
+    rivalBias: ['Iran'],
+    actionBias: ['oil_refinery','oil_extraction','train_bat','mech_div','air_wing','foreign_aid','host_event'],
+    notes: ['Royal Court directive','Vision 2030 initiative','Gulf security strategy',
+            'OPEC+ coordination','Petrodollar reinforcement','Regional stability enforcement'],
+  },
+  'South Korea': {
+    weights: { military:0.28, projects:0.20, diplomacy:0.20, tech:0.32 },
+    warBias: 0.5, tradeAcceptMod: +0.18, allyAcceptMod: +0.18,
+    allyBias: ['USA','Japan','Australia'],
+    rivalBias: ['North Korea','China'],
+    actionBias: ['ai_research','advanced_manufacturing','cyber_program','build_abm','air_wing','trade_deal','factory'],
+    notes: ['Blue House directive','K-industrial strength plan','Indo-Pacific strategy',
+            'Defense export initiative','Tech-military convergence','Alliance solidarity directive'],
+  },
+  'Turkey': {
+    weights: { military:0.38, projects:0.20, diplomacy:0.32, tech:0.10 },
+    warBias: 1.5, tradeAcceptMod: +0.02, allyAcceptMod: -0.08,
+    allyBias: ['Qatar','Azerbaijan','Pakistan','Somalia'],
+    rivalBias: ['Armenia','Greece','Israel','Saudi Arabia'],
+    actionBias: ['train_bat','mech_div','air_wing','alliance','form_faction','propaganda','diplomatic_summit'],
+    notes: ['Ankara directive','Neo-Ottoman strategy','Blue Homeland doctrine',
+            'Strategic depth initiative','Eurasian pivot','Independent power assertion'],
+  },
+  'Iran': {
+    weights: { military:0.45, projects:0.20, diplomacy:0.15, tech:0.20 },
+    warBias: 1.8, tradeAcceptMod: -0.12, allyAcceptMod: -0.15,
+    allyBias: ['Russia','China','Venezuela','North Korea','Syria'],
+    rivalBias: ['USA','Israel','Saudi Arabia','United Kingdom'],
+    actionBias: ['train_bat','nuclear','mech_div','cyber_program','propaganda','form_faction'],
+    notes: ['Supreme Leader directive','Axis of Resistance','Strategic depth through proxies',
+            'Nuclear deterrence posture','Resistance economy','Anti-hegemonic coalition'],
+  },
+  'Australia': {
+    weights: { military:0.28, projects:0.26, diplomacy:0.30, tech:0.16 },
+    warBias: 0.5, tradeAcceptMod: +0.12, allyAcceptMod: +0.15,
+    allyBias: ['USA','United Kingdom','Japan','India','New Zealand','South Korea'],
+    rivalBias: ['China'],
+    actionBias: ['alliance','build_abm','naval_fleet','air_wing','mining','trade_deal','intel_network'],
+    notes: ['Canberra directive','AUKUS partnership initiative','Indo-Pacific stability',
+            'Five Eyes intelligence network','Critical minerals strategy','Free and Open Pacific'],
+  },
+  'South Africa': {
+    weights: { military:0.12, projects:0.34, diplomacy:0.44, tech:0.10 },
+    warBias: 0.2, tradeAcceptMod: +0.22, allyAcceptMod: +0.18,
+    allyBias: ['Nigeria','Kenya','Zimbabwe','China','Russia','Brazil'],
+    rivalBias: [],
+    actionBias: ['trade_deal','alliance','peacekeeping','host_event','form_faction','mining','foreign_aid'],
+    notes: ['Pretoria directive','African Renaissance initiative','Non-alignment doctrine',
+            'Pan-African solidarity','BRICS strategic partnership','Ubuntu diplomacy'],
+  },
+  'Pakistan': {
+    weights: { military:0.45, projects:0.22, diplomacy:0.18, tech:0.15 },
+    warBias: 1.3, tradeAcceptMod: -0.05, allyAcceptMod: -0.08,
+    allyBias: ['China','Saudi Arabia','Turkey'],
+    rivalBias: ['India'],
+    actionBias: ['train_bat','nuclear','mech_div','fortify','arms_industry'],
+    notes: ['GHQ directive','National security imperatives','Strategic nuclear deterrence',
+            'CPEC development corridor','Regional stability assertion','Defence of the homeland'],
+  },
+  'Israel': {
+    weights: { military:0.42, projects:0.16, diplomacy:0.18, tech:0.24 },
+    warBias: 1.6, tradeAcceptMod: +0.05, allyAcceptMod: +0.05,
+    allyBias: ['USA','United Kingdom','Germany','UAE'],
+    rivalBias: ['Iran','Syria'],
+    actionBias: ['air_wing','cyber_program','build_abm','nuclear','ai_research','intel_network'],
+    notes: ['Cabinet security directive','Iron Wall doctrine','Qualitative military edge',
+            "Start-up Nation initiative",'Pre-emptive defence strategy','Mossad strategic assessment'],
+  },
+  'North Korea': {
+    weights: { military:0.70, projects:0.12, diplomacy:0.06, tech:0.12 },
+    warBias: 2.2, tradeAcceptMod: -0.45, allyAcceptMod: -0.35,
+    allyBias: ['China','Russia','Iran'],
+    rivalBias: ['USA','South Korea','Japan'],
+    actionBias: ['train_bat','nuclear','mech_div','bomber_wing','arms_industry','cyber_program'],
+    notes: ["Supreme Leader's command",'Juche self-reliance directive','Military-first policy',
+            'Nuclear deterrence imperative','Anti-imperialist resistance','Songun policy'],
+  },
+  'Nigeria': {
+    weights: { military:0.20, projects:0.38, diplomacy:0.30, tech:0.12 },
+    warBias: 0.5, tradeAcceptMod: +0.18, allyAcceptMod: +0.12,
+    allyBias: ['South Africa','Ghana','USA','United Kingdom'],
+    rivalBias: [],
+    actionBias: ['oil_extraction','factory','trade_deal','form_faction','agriculture','infra'],
+    notes: ['Abuja directive','African giant strategy','Oil wealth reinvestment',
+            'ECOWAS leadership initiative','Digital economy push','Resource nationalism'],
+  },
+  'Egypt': {
+    weights: { military:0.35, projects:0.28, diplomacy:0.24, tech:0.13 },
+    warBias: 0.9, tradeAcceptMod: +0.10, allyAcceptMod: +0.05,
+    allyBias: ['Saudi Arabia','UAE','USA','Russia'],
+    rivalBias: ['Turkey','Ethiopia'],
+    actionBias: ['train_bat','mech_div','infra','trade_deal','alliance','host_event'],
+    notes: ['Cairo directive','Protecting Nile interests','Arab world leadership',
+            'Strategic stability imperative','Infrastructure modernisation','Suez economic corridor'],
+  },
+  'Indonesia': {
+    weights: { military:0.22, projects:0.36, diplomacy:0.28, tech:0.14 },
+    warBias: 0.4, tradeAcceptMod: +0.20, allyAcceptMod: +0.10,
+    allyBias: ['Australia','USA','Japan','India'],
+    rivalBias: [],
+    actionBias: ['trade_deal','factory','infra','agriculture','mining','naval_fleet','urban_drive'],
+    notes: ['Jakarta directive','Nusantara development strategy','ASEAN centrality doctrine',
+            'Maritime sovereignty assertion','Resource archipelago plan','Indo-Pacific partnership'],
+  },
+  'Argentina': {
+    weights: { military:0.15, projects:0.42, diplomacy:0.28, tech:0.15 },
+    warBias: 0.3, tradeAcceptMod: +0.20, allyAcceptMod: +0.12,
+    allyBias: ['Brazil','Chile','USA','Germany'],
+    rivalBias: ['United Kingdom'],
+    actionBias: ['agriculture','eco_reform','trade_deal','infra','mining'],
+    notes: ['Buenos Aires directive','Pampas development agenda','Mercosur integration',
+            'Economic stabilisation plan','Resource export strategy','Southern Cone leadership'],
+  },
+  'Poland': {
+    weights: { military:0.38, projects:0.24, diplomacy:0.22, tech:0.16 },
+    warBias: 0.8, tradeAcceptMod: +0.12, allyAcceptMod: +0.18,
+    allyBias: ['USA','United Kingdom','Germany','France'],
+    rivalBias: ['Russia','Belarus'],
+    actionBias: ['train_bat','mech_div','build_abm','alliance','fortify','air_wing'],
+    notes: ['Warsaw directive','Eastern flank security','NATO eastern pillar initiative',
+            'Three Seas regional leadership','EU security engagement','Sovereignty defence'],
+  },
+  'Ukraine': {
+    weights: { military:0.55, projects:0.20, diplomacy:0.18, tech:0.07 },
+    warBias: 1.2, tradeAcceptMod: -0.05, allyAcceptMod: +0.15,
+    allyBias: ['USA','United Kingdom','Poland','France','Germany'],
+    rivalBias: ['Russia','Belarus'],
+    actionBias: ['train_bat','mech_div','fortify','alliance','build_abm','air_wing'],
+    notes: ['Kyiv directive','Territorial sovereignty imperative','NATO integration drive',
+            'Defence of the homeland','Western integration push','Iron will of resistance'],
+  },
+  'Venezuela': {
+    weights: { military:0.35, projects:0.28, diplomacy:0.22, tech:0.15 },
+    warBias: 1.1, tradeAcceptMod: -0.08, allyAcceptMod: -0.10,
+    allyBias: ['Cuba','Russia','China','Iran','Bolivia'],
+    rivalBias: ['USA','Colombia'],
+    actionBias: ['oil_extraction','oil_refinery','train_bat','propaganda','form_faction'],
+    notes: ['Miraflores Palace directive','Bolivarian Revolution mandate','Anti-imperialist stance',
+            'Petro-state consolidation','Socialist solidarity','Resource sovereignty defence'],
+  },
+  'Colombia': {
+    weights: { military:0.28, projects:0.34, diplomacy:0.26, tech:0.12 },
+    warBias: 0.6, tradeAcceptMod: +0.18, allyAcceptMod: +0.12,
+    allyBias: ['USA','Brazil','Peru','Chile'],
+    rivalBias: ['Venezuela'],
+    actionBias: ['trade_deal','agriculture','infra','eco_reform','alliance'],
+    notes: ['Bogotá directive','Pacific Alliance coordination','Security first agenda',
+            'Agricultural modernisation','Economic openness strategy','US alignment posture'],
+  },
+  'Ethiopia': {
+    weights: { military:0.30, projects:0.36, diplomacy:0.24, tech:0.10 },
+    warBias: 1.0, tradeAcceptMod: +0.15, allyAcceptMod: +0.08,
+    allyBias: ['China','USA','Kenya','India'],
+    rivalBias: ['Egypt','Eritrea'],
+    actionBias: ['agriculture','hydroelectric','infra','train_bat','trade_deal'],
+    notes: ['Addis Ababa directive','Nile Basin sovereignty','Horn of Africa leadership',
+            'Renaissance Dam initiative','Agricultural heartland plan','AU chairmanship agenda'],
+  },
+  'Mexico': {
+    weights: { military:0.18, projects:0.38, diplomacy:0.30, tech:0.14 },
+    warBias: 0.3, tradeAcceptMod: +0.22, allyAcceptMod: +0.12,
+    allyBias: ['USA','Canada','Brazil','Spain'],
+    rivalBias: [],
+    actionBias: ['factory','trade_deal','eco_reform','infra','tourism','oil_extraction'],
+    notes: ['Mexico City directive','Nearshoring industrial strategy','USMCA integration',
+            'Security-development balance','Resource energy sovereignty','Latin American bridge'],
+  },
+  'Vietnam': {
+    weights: { military:0.28, projects:0.32, diplomacy:0.24, tech:0.16 },
+    warBias: 0.7, tradeAcceptMod: +0.18, allyAcceptMod: +0.06,
+    allyBias: ['USA','Japan','India','South Korea'],
+    rivalBias: ['China'],
+    actionBias: ['naval_fleet','trade_deal','factory','infra','agriculture'],
+    notes: ['Hanoi directive','Doi Moi 2.0 modernisation','South China Sea sovereignty',
+            'Bamboo diplomacy doctrine','Export manufacturing hub','Strategic autonomy'],
+  },
+  'Thailand': {
+    weights: { military:0.22, projects:0.36, diplomacy:0.28, tech:0.14 },
+    warBias: 0.4, tradeAcceptMod: +0.20, allyAcceptMod: +0.10,
+    allyBias: ['USA','China','Japan','Australia'],
+    rivalBias: [],
+    actionBias: ['tourism','factory','trade_deal','infra','agriculture'],
+    notes: ['Bangkok directive','Thainess preservation strategy','ASEAN hub initiative',
+            'Export-led growth plan','Tourism powerhouse strategy','Royal development plan'],
+  },
+};
+
 function showSoloSetup(){
   document.getElementById('landingCards').style.display='none';
   document.getElementById('soloSetupForm').classList.add('active');
@@ -8901,37 +9175,57 @@ function initSoloGame(playerCountry, gov){
 
 // ── AI Decision Engine ──
 function aiDecideAction(id, c, diff){
-  const personality = AI_PERSONALITIES[diff] || AI_PERSONALITIES.normal;
-  const sp = c.stockpile || {};
-  const eco = c.economy.pool;
+  const diffPersonality = AI_PERSONALITIES[diff] || AI_PERSONALITIES.normal;
+  const countryProfile  = COUNTRY_AI_PROFILES[id] || null;
 
+  // Blend: country profile 65% weight, difficulty 35% — so personality is dominant but difficulty still matters
+  const w = {};
+  const cats = Object.keys(diffPersonality).filter(k => ['military','projects','diplomacy','tech'].includes(k));
+  cats.forEach(k => {
+    const dv = diffPersonality[k] || 0.1;
+    const cv = countryProfile?.weights?.[k] ?? dv;
+    w[k] = cv * 0.65 + dv * 0.35;
+  });
+
+  // Situational adjustments (same as before)
+  const sp  = c.stockpile || {};
+  const eco = c.economy.pool;
   const canAfford = a => eco>=a.eco && (sp.constructionMats||0)>=a.mat && (sp.critMinerals||0)>=a.min && (sp.energy||0)>=a.egy;
 
-  // Adjust category weights based on current state
-  const w = { ...personality };
-  if((c.stability||60) < 40)  { w.projects  += 0.30; w.military -= 0.15; }
-  if(eco < 12)                 { w.projects  += 0.20; }
-  if((c.military.battalions||0) < 60) { w.military += 0.20; }
-  if((c.tech.tier||0) < 1)    { w.tech      += 0.10; }
+  if((c.stability||60) < 40) { w.projects  = (w.projects||0)  + 0.25; w.military = Math.max(0,(w.military||0) - 0.12); }
+  if(eco < 12)                { w.projects  = (w.projects||0)  + 0.18; }
+  if((c.military.battalions||0) < 60 && (countryProfile?.weights?.military||0) > 0.3) { w.military = (w.military||0) + 0.15; }
+  if((c.tech?.tier||0) < 1)  { w.tech      = (w.tech||0)      + 0.08; }
 
-  // Pick a category by weighted random
-  const cats = Object.keys(ACTION_COSTS);
-  const catWList = cats.map(k=>({ cat:k, wt:Math.max(0, w[k]||0.1) }));
+  // Pick category by weighted random
+  const catWList = cats.map(k => ({ cat:k, wt: Math.max(0, w[k]||0.05) }));
   const total = catWList.reduce((s,x)=>s+x.wt, 0);
-  let rand = Math.random()*total;
+  let rand = Math.random() * total;
   let chosenCat = 'projects';
-  for(const {cat, wt} of catWList){ rand-=wt; if(rand<=0){ chosenCat=cat; break; } }
+  for(const {cat, wt} of catWList){ rand -= wt; if(rand <= 0){ chosenCat = cat; break; } }
 
-  // Pick an affordable action from that category; fallback to any affordable
+  // Pick action within category — bias toward country profile actionBias IDs (×3 weight)
   let options = (ACTION_COSTS[chosenCat]||[]).filter(canAfford);
   if(!options.length){
-    options = cats.flatMap(cat=>(ACTION_COSTS[cat]||[]).filter(canAfford).map(a=>({...a,_cat:cat})));
-    if(!options.length) return null;
-    const pick = options[Math.floor(Math.random()*options.length)];
-    return { ...pick, category: pick._cat };
+    const allOptions = Object.entries(ACTION_COSTS).flatMap(([cat,arr])=>arr.filter(canAfford).map(a=>({...a,_cat:cat})));
+    if(!allOptions.length) return null;
+    const fallback = allOptions[Math.floor(Math.random()*allOptions.length)];
+    return { ...fallback, category: fallback._cat, note: _pickCountryNote(countryProfile) };
   }
-  const picked = options[Math.floor(Math.random()*options.length)];
-  return { ...picked, category: chosenCat };
+
+  const biasIds = countryProfile?.actionBias || [];
+  const weighted = options.map(a => ({ a, wt: biasIds.includes(a.id) ? 3 : 1 }));
+  const wTotal   = weighted.reduce((s,x)=>s+x.wt, 0);
+  let r = Math.random() * wTotal;
+  let picked = options[0];
+  for(const {a, wt} of weighted){ r -= wt; if(r <= 0){ picked = a; break; } }
+
+  return { ...picked, category: chosenCat, note: _pickCountryNote(countryProfile) };
+}
+
+function _pickCountryNote(profile){
+  if(!profile?.notes?.length) return 'AI decision';
+  return profile.notes[Math.floor(Math.random() * profile.notes.length)];
 }
 
 // ── AI Diplomacy Proposal Responses ──────────────────────────────
@@ -8969,10 +9263,21 @@ function aiRespondToProposals(){
     if(prop.type === 'alliance'){
       if(isAlready){ toRemove.push(prop.id); return; } // already allied, clean up
       // Accept chance: base 55%, +15% if not many allies yet, +10% if sender has high prestige
+      const receiverProfile = COUNTRY_AI_PROFILES[prop.to] || null;
+      // Profile: hard reject if sender is a rival
+      if(receiverProfile?.rivalBias?.includes(prop.from)){
+        if(!GS.newsBoard) GS.newsBoard=[];
+        GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'diplomacy',
+          title:`❌ Alliance Rejected: ${prop.from} → ${prop.to}`,
+          body:`${prop.to} has firmly rejected ${prop.from}'s alliance proposal.`});
+        toRemove.push(prop.id);
+        return;
+      }
       const senderPrestige = fromC.prestige || 0;
       const allyBonus = allies.length < 2 ? 0.15 : 0;
       const prestigeBonus = senderPrestige > 30 ? 0.10 : 0;
-      const acceptChance = 0.55 + allyBonus + prestigeBonus;
+      const profileAllyMod = (receiverProfile?.allyAcceptMod || 0) + (receiverProfile?.allyBias?.includes(prop.from) ? 0.25 : 0);
+      const acceptChance = 0.55 + allyBonus + prestigeBonus + profileAllyMod;
       if(Math.random() < acceptChance){
         // Accept
         if(!aiC.diplomacy.allies.includes(prop.from))   aiC.diplomacy.allies.push(prop.from);
@@ -8995,9 +9300,13 @@ function aiRespondToProposals(){
 
     } else if(prop.type === 'trade_deal'){
       // Accept chance: base 65%, +10% if AI eco pool is low (needs trade income), +10% if already agreements
+      const receiverProfile = COUNTRY_AI_PROFILES[prop.to] || null;
       const ecoBonus   = (aiC.economy?.pool||0) < 20 ? 0.10 : 0;
       const agreeBonus = (aiC.diplomacy?.agreements||[]).length > 0 ? 0.10 : 0;
-      const acceptChance = 0.65 + ecoBonus + agreeBonus;
+      const profileTradeMod = (receiverProfile?.tradeAcceptMod || 0)
+        + (receiverProfile?.rivalBias?.includes(prop.from) ? -0.25 : 0)
+        + (receiverProfile?.allyBias?.includes(prop.from)  ? +0.15 : 0);
+      const acceptChance = 0.65 + ecoBonus + agreeBonus + profileTradeMod;
       if(Math.random() < acceptChance){
         // Accept
         if(!aiC.diplomacy.agreements.includes(prop.from))  aiC.diplomacy.agreements.push(prop.from);
@@ -9044,7 +9353,7 @@ function submitAiTurns(){
       c.stockpile.constructionMats = Math.max(0,(c.stockpile.constructionMats||0)-action.mat);
       c.stockpile.critMinerals     = Math.max(0,(c.stockpile.critMinerals||0)-action.min);
       c.stockpile.energy           = Math.max(0,(c.stockpile.energy||0)-action.egy);
-      c.actions = [{ category:action.category, actionId:action.id, note:'AI decision', warTarget:'' }];
+      c.actions = [{ category:action.category, actionId:action.id, note:action.note||'AI decision', warTarget:'' }];
     } else {
       c.actions = [{ category:'', actionId:'', note:'', warTarget:'' }];
     }
