@@ -7,7 +7,7 @@
 <style>
 :root {
   --bg:#0d1117;--surface:#161b22;--surface2:#1c2230;--border:#30363d;--border2:#3d444d;
-  --text:#c9d1d9;--text-dim:#768390;--accent:#58a6ff;--green:#2dc653;--red:#e05c6b;
+  --text:#c9d1d9;--text-dim:#8b949e;--accent:#58a6ff;--green:#2dc653;--red:#e05c6b;
   --orange:#f4a261;--gold:#d4a52a;--radius:6px;--header-h:52px;--bar-h:72px;--panel-w:340px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -469,32 +469,123 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 
 /* ── MOBILE ── */
 @media(max-width:768px){
-  :root{--panel-w:100%;--header-h:46px;--bar-h:64px}
-  html,body{font-size:12px}
-  #view-world{flex-direction:column}
-  #map-wrap{min-height:40vh;max-height:40vh}
-  #right-panel{width:100%;min-width:0;border-left:none;border-top:1px solid var(--border);max-height:calc(58vh - var(--bar-h))}
-  .tabs{display:none}
-  .tabs.mob-open{display:flex;flex-direction:column;position:fixed;top:var(--header-h);left:0;right:0;background:var(--surface);z-index:150;padding:8px;gap:4px;border-bottom:1px solid var(--border2);box-shadow:0 8px 24px rgba(0,0,0,.5)}
-  .tabs.mob-open .tab-btn{text-align:left;padding:10px 14px;width:100%;border-radius:var(--radius)}
-  #mobileMenuBtn{display:flex!important}
-  .brand{font-size:13px}
+  :root{--panel-w:100%;--header-h:50px;--bar-h:70px}
+  html,body{font-size:15px} /* BIGGER on mobile for readability */
+
+  /* ── Header: brand + horizontally scrollable tabs + who-badge ── */
+  #header{gap:5px;padding:0 8px}
+  .brand{font-size:13px;white-space:nowrap}
   .turn-info{display:none}
-  #exportBtn,#importBtn{display:none!important}
-  .landing-cards{grid-template-columns:1fr}
-  .landing-box{padding:24px 18px}
-  .stat-grid{grid-template-columns:1fr 1fr}
-  .actions-grid{grid-template-columns:1fr}
-  #bottom-bar{overflow-x:auto;flex-wrap:nowrap;padding:0 6px;gap:4px}
-  .country-bar-pill{min-width:90px;max-width:130px}
+  #mobileMenuBtn{display:none!important} /* tabs scroll now — no hamburger needed */
+
+  /* Horizontal-scroll tab strip: all tabs visible, swipe to reach more */
+  .tabs{display:flex!important;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+        scrollbar-width:none;flex-shrink:1;min-width:0;margin-left:2px;gap:0}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab-btn{font-size:11px;padding:5px 9px;white-space:nowrap;flex-shrink:0;min-height:38px}
+
+  /* Hide noisy header badges — world tension, climate clutter the tiny header */
+  #worldTensionBadge,#climateBadge{display:none!important}
+  #gmViewSelect{display:none!important}
+
+  /* Compact who badge (flag only) */
+  .who-badge{padding:3px 7px;font-size:12px;gap:4px}
+
+  /* ── World view: map + panel stack vertically ── */
+  #view-world{flex-direction:column}
+  #map-wrap{min-height:40vh;max-height:40vh;flex:none}
+  #right-panel{width:100%;min-width:0;border-left:none;border-top:1px solid var(--border);flex:1;max-height:none;overflow-y:auto}
+
+  /* ── Bottom bar: scrollable with bigger pills ── */
+  #bottom-bar{overflow-x:auto;flex-wrap:nowrap;padding:0 8px;gap:5px;-webkit-overflow-scrolling:touch}
+  .country-bar-pill{min-width:100px;max-width:145px;padding:6px 8px}
+  .pill-name{font-size:12px;font-weight:700}
+  .pill-player{font-size:11px}
   .pill-stats{display:none}
+
+  /* ── Readability: bump up all the tiny labels ── */
+  .section-title{font-size:12px}
+  .stat-box .label{font-size:11px;letter-spacing:.2px}
+  .stat-box .value{font-size:16px}
+  .stat-box .sub{font-size:12px}
+  .mil-row{font-size:13px;padding:4px 0}
+  .res-table{font-size:13px}
+  .res-table td,.res-table th{padding:3px 4px}
+  .badge{font-size:11px;padding:3px 8px}
+  .news-cat{font-size:11px}
+  .news-title{font-size:14px;line-height:1.5}
+  .news-body{font-size:13px;line-height:1.6}
+  .news-turn{font-size:12px}
+  .card-name{font-size:16px}
+  .card-flag{font-size:28px}
+  .card-player{font-size:12px}
+  .card-gov{font-size:11px}
+  .locked-msg{font-size:13px;padding:14px}
+  .submitted-msg{font-size:13px}
+
+  /* ── Touch targets: min 36–44px on all interactive elements ── */
+  .btn{font-size:12px;padding:7px 13px;min-height:38px}
+  .btn.primary{min-height:40px}
+  .act-cat-btn{font-size:12px;padding:5px 12px;min-height:34px}
+  .submit-turn-btn{font-size:15px;padding:11px;min-height:46px;font-weight:700}
+  .ptab{min-height:46px;font-size:11px}
+  .rel-stance-btn{padding:5px 12px;font-size:11px;min-height:34px}
+  .ds-btn{min-height:32px;min-width:30px;font-size:13px}
+  .policy-btn{font-size:11px;padding:6px 3px;min-height:38px}
+
+  /* ── Action form: fingers need bigger inputs ── */
+  .action-field label{font-size:13px}
+  .action-field input,.action-field textarea{font-size:15px;padding:9px 11px}
+  #action-panel h3{font-size:12px}
+
+  /* ── Grids collapse to single column ── */
+  .actions-grid{grid-template-columns:1fr}
   .events-layout{grid-template-columns:1fr}
-  .chat-msg{max-width:95%}
-  .timer-badge{font-size:9px;padding:2px 6px}
+  .market-two-col{grid-template-columns:1fr}
+  .landing-cards{grid-template-columns:1fr}
+  .market-post-row{grid-template-columns:1fr 1fr;gap:8px}
+  .neg-ctr-grid{grid-template-columns:1fr 1fr;gap:7px}
+
+  /* ── Landing / login ── */
+  .landing-box{padding:24px 18px}
+
+  /* ── Chat ── */
+  .chat-msg{max-width:96%}
+  .chat-bubble{font-size:14px}
+  #chatMsg{font-size:14px;padding:9px 12px}
+
+  /* ── Misc ── */
+  .pac-name{font-size:14px}
+  .pac-player{font-size:11px}
+  #exportBtn,#importBtn{display:none!important}
+  .big-stat{font-size:28px}
+  .big-stat .unit{font-size:14px}
+  .rel-player-row{font-size:13px;gap:10px}
+  .rel-npc-name{font-size:12px}
 }
+
 @media(max-width:480px){
-  .landing-box{padding:20px 14px;width:98vw}
+  :root{--header-h:46px;--bar-h:64px}
+  html,body{font-size:15px}
+
+  /* Even tighter header on small phones */
+  .tab-btn{font-size:10px;padding:4px 8px;min-height:36px}
+  .brand{font-size:12px}
+  .who-badge{font-size:11px}
+  .who-badge span:not(.wflag){display:none} /* flag only */
+
+  /* Content fonts slightly bigger on tiny screens */
+  .news-title{font-size:15px}
+  .news-body{font-size:14px}
+  .stat-box .value{font-size:18px}
+  .big-stat{font-size:26px}
+
+  /* Landing & login */
+  .landing-box{padding:20px 14px;width:98vw;border-radius:12px}
   .login-box{padding:24px 16px;width:98vw}
+  #landingOverlay{padding:12px 0 env(safe-area-inset-bottom,12px)}
+
+  /* Country picker */
   .picker-header{flex-direction:column;gap:8px;align-items:flex-start}
   .picker-search{width:100%}
   .picker-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
@@ -502,8 +593,6 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
   .picker-footer .picker-selected-info{justify-content:center;text-align:center}
   .picker-gov-wrap{justify-content:center}
   #pickerJoinBtn{width:100%;padding:14px;font-size:16px}
-  #landingOverlay{padding:12px 0 env(safe-area-inset-bottom,12px)}
-  .landing-box{border-radius:12px}
 }
 </style>
 </head>
