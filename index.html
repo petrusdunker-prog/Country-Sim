@@ -1928,6 +1928,7 @@ const SESSION_KEY = 'csr_session_v3'; // bumped: now includes roomCode
 let session = null; // { name, country, roomCode? }
 let _roomCode = null; // null = main game; string = room id
 let _actSlot = 0; // which action slot (0,1,2) is being edited in the UI
+let _narratorShownForTurn = -1; // prevents re-showing narrator modal for same turn
 let _lastAutoProcessedTurn = -1; // guard: prevents processTurn() firing twice for the same turn
 
 function getSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch{ return null; } }
@@ -4802,6 +4803,7 @@ function processTurn(){
   Object.entries(GS.countries).forEach(([id,c])=>{
     _preSnap[id]={pool:c.economy.pool, stab:c.stability, pres:c.prestige,
       net:c.economy.netIncome, trade:c.economy.tradeIncome||0,
+      devLevel:c.developmentLevel||3,
       projNames:(c.projects||[]).map(p=>p.name)};
   });
   Object.entries(GS.countries).forEach(([id,c])=>{
@@ -4971,6 +4973,7 @@ function processTurn(){
       netIncome: c.economy.netIncome, netDelta: c.economy.netIncome - s.net,
       trade: c.economy.tradeIncome||0, tradeDelta: (c.economy.tradeIncome||0) - s.trade,
       projectsDone: projDone.map(p=>({name:p.name, effects:p.effects})),
+      narrative: buildTurnNarrative(id, c, _preSnap[id], entry.actions?.[id]||[], GS.turn),
       seen: false,
     };
   });
@@ -5009,6 +5012,195 @@ function resetGame(){
   if(_roomCode) GS.phase = 'collecting';
   pushState();
   toast('Game reset to Turn 0','success');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TURN NARRATOR
+// ══════════════════════════════════════════════════════════════
+function _findActionDef(category, actionId){
+  if(category && ACTION_COSTS[category]){
+    const f = ACTION_COSTS[category].find(a=>a.id===actionId);
+    if(f) return f;
+  }
+  for(const arr of Object.values(ACTION_COSTS)){
+    const f = arr.find(a=>a.id===actionId);
+    if(f) return f;
+  }
+  return null;
+}
+
+function buildTurnNarrative(id, c, snap, actions, turnNum){
+  const items = [];
+
+  // ── Internal items ──
+  const internal = [];
+
+  // Actions taken
+  (actions||[]).forEach(act=>{
+    if(!act||!act.actionId) return;
+    const def = _findActionDef(act.category, act.actionId);
+    if(!def) return;
+    const eff = def.effects ? Object.entries(def.effects).filter(([,v])=>v&&v!==0).map(([k,v])=>`${k} ${v>0?'+':''}${v}`).join(', ') : '';
+    let text = def.name;
+    if(eff) text += `: ${eff}`;
+    if(act.note && act.note !== 'AI decision') text += ` — "${act.note}"`;
+    internal.push({cat:'internal', icon:'⚙️', text});
+  });
+
+  // Economy: pool delta
+  const poolDelta = c.economy.pool - (snap.pool||0);
+  if(poolDelta >= 10)       internal.push({cat:'internal', icon:'💰', text:`Treasury grew by +${poolDelta} EP this turn`});
+  else if(poolDelta <= -10) internal.push({cat:'internal', icon:'📉', text:`Treasury fell ${Math.abs(poolDelta)} EP — economic pressures mounting`});
+
+  // Net income delta
+  const netDelta = c.economy.netIncome - (snap.net||0);
+  if(netDelta >= 3)       internal.push({cat:'internal', icon:'📈', text:`+${netDelta}/turn income improvement`});
+  else if(netDelta <= -3) internal.push({cat:'internal', icon:'📉', text:`Income fell ${Math.abs(netDelta)}/turn`});
+
+  // Trade delta
+  const tradeDelta = (c.economy.tradeIncome||0) - (snap.trade||0);
+  if(tradeDelta >= 3)       internal.push({cat:'internal', icon:'🚢', text:`Trade income up +${tradeDelta}/turn`});
+  else if(tradeDelta <= -3) internal.push({cat:'internal', icon:'🚢', text:`Trade income fell ${Math.abs(tradeDelta)}/turn`});
+
+  // Stability delta
+  const stabDelta = c.stability - (snap.stab||0);
+  if(stabDelta >= 5)       internal.push({cat:'internal', icon:'🟢', text:`Stability rose +${stabDelta} — public confidence growing`});
+  else if(stabDelta <= -5) internal.push({cat:'internal', icon:'🔴', text:`Stability fell ${Math.abs(stabDelta)} — rising civil tensions`});
+  else if(stabDelta >= 2)  internal.push({cat:'internal', icon:'🟡', text:`Stability up +${stabDelta}`});
+  else if(stabDelta <= -2) internal.push({cat:'internal', icon:'🟠', text:`Stability down ${Math.abs(stabDelta)}`});
+
+  // Prestige delta
+  const presDelta = c.prestige - (snap.pres||0);
+  if(presDelta >= 5)       internal.push({cat:'internal', icon:'🌟', text:`International standing surged +${presDelta}`});
+  else if(presDelta <= -5) internal.push({cat:'internal', icon:'💫', text:`Prestige fell ${Math.abs(presDelta)}`});
+
+  // Dev tier advance
+  if((c.developmentLevel||3) > (snap.devLevel||3)){
+    const tier = DEV_TIER[c.developmentLevel];
+    internal.push({cat:'internal', icon:'🏗', text:`Development advanced to ${tier?tier.label:'Tier '+(c.developmentLevel)} — new capabilities unlocked`});
+  }
+
+  // Projects completed this turn
+  (c.completedProjects||[]).filter(p=>p.turn===turnNum).forEach(p=>{
+    const effStr = p.effects ? Object.entries(p.effects).filter(([,v])=>v&&v!==0).map(([k,v])=>`${k} ${v>0?'+':''}${v}`).join(', ') : '';
+    internal.push({cat:'internal', icon:'🏗', text:`Project complete: ${p.name}${effStr?` (${effStr})`:''}` });
+  });
+
+  if(internal.length === 0){
+    internal.push({cat:'internal', icon:'📋', text:'A stable turn — no major internal changes.'});
+  }
+
+  // ── Crisis items ──
+  const crisis = [];
+  (GS.newsBoard||[]).filter(e=>e.turn===turnNum && e.category==='crisis' && (e.title||'').includes(id)).forEach(e=>{
+    const titleStr = e.title||'';
+    const emojiMatch = titleStr.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s/u);
+    const icon = emojiMatch ? emojiMatch[0].trim() : '🔴';
+    const text = emojiMatch ? titleStr.slice(emojiMatch[0].length) : titleStr;
+    crisis.push({cat:'crisis', icon, text});
+  });
+  if(c.civilWar){
+    crisis.push({cat:'crisis', icon:'⚔️', text:`Civil war continues — ${c.civilWar.turnsLeft} turns remaining, stability −${(c.civilWar.severity||1)*2}/turn`});
+  }
+  if(c.defaulted){
+    crisis.push({cat:'crisis', icon:'💸', text:'In debt default — income penalties active, borrowing blocked'});
+  }
+
+  // ── World items ──
+  const world = [];
+  const catIcon = {market:'💹', military:'⚔️', diplomacy:'🤝', disaster:'🌪', crisis:'🔴', default:'📰'};
+  (GS.newsBoard||[]).filter(e=>e.turn===turnNum && !(e.title||'').includes(id)).slice(0,8).forEach(e=>{
+    const icon = catIcon[e.category] || '📰';
+    world.push({cat:'world', icon, text: e.title||''});
+  });
+
+  return [...internal.map(i=>({...i,cat:'internal'})), ...crisis.map(i=>({...i,cat:'crisis'})), ...world.map(i=>({...i,cat:'world'}))];
+}
+
+function _renderNarratorSection(label, iconEmoji, items, emptyMsg, accentColor){
+  if(items.length === 0 && emptyMsg === null) return '';
+  const rows = items.length > 0 ? items.map((item, i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-start;padding:6px 10px;border-radius:6px;background:${i%2===0?'transparent':'rgba(255,255,255,0.03)'}">
+      <span style="flex-shrink:0;font-size:14px;line-height:1.6">${item.icon}</span>
+      <span style="font-size:12px;line-height:1.45;color:var(--text)">${item.text}</span>
+    </div>`).join('') : `<div style="font-size:12px;color:var(--text-dim);padding:6px 10px">${emptyMsg||''}</div>`;
+  return `
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${accentColor};padding:0 2px 6px;border-bottom:1px solid var(--border);margin-bottom:6px">${iconEmoji} ${label}</div>
+      ${rows}
+    </div>`;
+}
+
+function showTurnNarratorModal(id){
+  const existing = document.getElementById('turnNarratorModal');
+  if(existing) existing.remove();
+
+  const tr = GS.turnResults?.[id];
+  if(!tr) return;
+
+  const narrative = tr.narrative || [];
+  const internal  = narrative.filter(i=>i.cat==='internal');
+  const crisis    = narrative.filter(i=>i.cat==='crisis');
+  const world     = narrative.filter(i=>i.cat==='world');
+
+  const meta   = PLAYER_META[id] || {};
+  const flag   = meta.flag || '🏳';
+  const turnN  = tr.turn;
+  const dateStr = getTurnDate(turnN);
+
+  const poolDelta  = tr.poolDelta  || 0;
+  const stabDelta  = tr.stabDelta  || 0;
+  const presDelta  = tr.presDelta  || 0;
+
+  function deltaBadge(val, label, posColor, negColor){
+    if(!val) return '';
+    const color = val > 0 ? posColor : negColor;
+    const sign  = val > 0 ? '+' : '';
+    return `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${color}22;color:${color};border:1px solid ${color}55">${sign}${val} ${label}</span>`;
+  }
+
+  const poolBadge  = deltaBadge(poolDelta,  'EP',  'var(--green)', 'var(--red)');
+  const stabBadge  = deltaBadge(stabDelta,  'Stab','var(--green)', 'var(--red)');
+  const presBadge  = deltaBadge(presDelta,  'Pres','var(--gold)',  'var(--text-dim)');
+
+  const internalHtml = _renderNarratorSection('My Country', '🏛', internal, 'No notable changes this turn.', 'var(--accent)');
+  const crisisHtml   = crisis.length > 0 ? _renderNarratorSection('Crises & Alerts', '🚨', crisis, null, 'var(--red)') : '';
+  const worldHtml    = world.length  > 0 ? _renderNarratorSection('World Dispatch',  '🌍', world,  null, 'var(--text-dim)') : '';
+
+  const modal = document.createElement('div');
+  modal.id = 'turnNarratorModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;max-width:540px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 40px #0008">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 18px 13px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <span style="font-size:22px;line-height:1">${flag}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Turn ${turnN} — End of Turn Report</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:1px">${dateStr}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+          ${poolBadge}${stabBadge}${presBadge}
+        </div>
+      </div>
+      <!-- Body -->
+      <div style="overflow-y:auto;padding:16px 16px 8px;flex:1">
+        ${internalHtml}
+        ${crisisHtml}
+        ${worldHtml}
+      </div>
+      <!-- Footer -->
+      <div style="padding:12px 18px 14px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:flex-end">
+        <button class="btn" onclick="closeTurnNarratorModal('${id}')" style="background:var(--accent)22;border-color:var(--accent)88;color:var(--accent);font-weight:700;padding:7px 22px">Got it ✓</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) closeTurnNarratorModal(id); });
+}
+
+function closeTurnNarratorModal(id){
+  const modal = document.getElementById('turnNarratorModal');
+  if(modal) modal.remove();
 }
 
 function openBugReport(){
@@ -5829,7 +6021,7 @@ function aiProcessTurn(){
     const _preSnap2 = {};
     Object.entries(GS.countries).forEach(([id,c])=>{
       _preSnap2[id]={pool:c.economy.pool,stab:c.stability,pres:c.prestige,
-        net:c.economy.netIncome,trade:c.economy.tradeIncome||0};
+        net:c.economy.netIncome,trade:c.economy.tradeIncome||0,devLevel:c.developmentLevel||3};
     });
     Object.entries(GS.countries).forEach(([id, c]) => {
       entry.actions[id] = c.actions.map(a=>({...a}));
@@ -5959,6 +6151,7 @@ function aiProcessTurn(){
         netIncome: c.economy.netIncome, netDelta: c.economy.netIncome - s.net,
         trade: c.economy.tradeIncome||0, tradeDelta: (c.economy.tradeIncome||0) - s.trade,
         projectsDone: projDone.map(p=>({name:p.name, effects:p.effects})),
+        narrative: buildTurnNarrative(id, c, _preSnap2[id], [], GS.turn),
         seen: false,
       };
     });
@@ -8470,6 +8663,15 @@ function updateAllUI(){
   renderMapLegend();
   renderBottomBar();
   _updateDiploBadge();
+  // Show turn narrator modal for human players when new unseen results arrive
+  {
+    const _myId = session?.country;
+    const _myTr = GS.turnResults?.[_myId];
+    if(_myId && _myId !== 'gm' && _myTr && !_myTr.seen && _narratorShownForTurn !== _myTr.turn && !document.getElementById('turnNarratorModal')){
+      _narratorShownForTurn = _myTr.turn;
+      showTurnNarratorModal(_myId);
+    }
+  }
   // Auto-advance and auto-process for GM
   if(session.country === 'gm'){
     const playerCount = Object.keys(GS.slots||{}).length;
@@ -8865,6 +9067,11 @@ function processSoloTurn(){
 }
 function _runSoloTurnBody(){
   const entry={turn:GS.turn+1,date:getTurnDate(GS.turn+1),actions:{}};
+  const _preSnapSolo = {};
+  Object.entries(GS.countries).forEach(([id,c])=>{
+    _preSnapSolo[id]={pool:c.economy.pool,stab:c.stability,pres:c.prestige,
+      net:c.economy.netIncome,trade:c.economy.tradeIncome||0,devLevel:c.developmentLevel||3};
+  });
   Object.entries(GS.countries).forEach(([id,c])=>{
     entry.actions[id]=c.actions.map(a=>({...a}));
     c.actions.forEach(act=>{ if(act&&act.actionId) applyActionEffects(c, act.actionId, act.category); });
@@ -8951,6 +9158,20 @@ function _runSoloTurnBody(){
   generateDisasters(); generateClimateDisasters(); processPuppetTributes(); decayWorldTension();
   processMigration(); processTechRaces(); updateClimateStress();
   Object.values(GS.countries).forEach(c=>{if(c.espionage)c.espionage.opsThisTurn=0;});
+  GS.turnResults = {};
+  Object.entries(GS.countries).forEach(([id,c])=>{
+    const s=_preSnapSolo[id]; if(!s) return;
+    const projDone=(c.completedProjects||[]).filter(p=>p.turn===GS.turn);
+    GS.turnResults[id]={
+      turn:GS.turn, pool:c.economy.pool, poolDelta:c.economy.pool-s.pool,
+      stabDelta:c.stability-s.stab, presDelta:c.prestige-s.pres,
+      netIncome:c.economy.netIncome, netDelta:c.economy.netIncome-s.net,
+      trade:c.economy.tradeIncome||0, tradeDelta:(c.economy.tradeIncome||0)-s.trade,
+      projectsDone:projDone.map(p=>({name:p.name,effects:p.effects})),
+      narrative:buildTurnNarrative(id,c,s,entry.actions?.[id]||[],GS.turn),
+      seen:false,
+    };
+  });
   GS.turnLog.unshift(entry);
   GS.turn++;
   GS.phase='collecting';
