@@ -7477,19 +7477,19 @@ function showObjectivesPopup(id, force){
       return;
     }
     slot.seenObjective = null; // new objective — will be shown
-    pushState();
   }
   // Don't auto-show on login if already seen this objective (unless forced by button click)
   if(!force && slot.seenObjective === obj.id) return;
 
-  // Mark as seen so it won't re-appear on next login
-  slot.seenObjective = obj.id;
-  if(!isNew) pushState();
-
+  // Grab popup elements first — bail early if DOM is missing
   const popup = document.getElementById('objPopup');
   const content = document.getElementById('objPopupContent');
   if(!popup || !content){ toast('Objective panel not found','error'); return; }
 
+  // Build content and SHOW popup immediately — before any pushState()
+  // (pushState triggers Firebase on('value') synchronously which rerenders the dashboard;
+  //  doing it after the popup is visible prevents a race where the rerender happens
+  //  between setting content and removing 'hidden')
   const completed = slot.completedObjectives || [];
   const tierNum = (obj.tier !== undefined ? obj.tier : 0);
   content.innerHTML = `
@@ -7502,6 +7502,10 @@ function showObjectivesPopup(id, force){
     <div style="font-size:11px;color:var(--text-dim)">Complete this to receive your reward and unlock a harder Tier ${Math.min(tierNum+2,3)} objective.</div>
   `;
   popup.classList.remove('hidden');
+
+  // Mark as seen and push state AFTER popup is visible (deferred to avoid sync rerender race)
+  slot.seenObjective = obj.id;
+  setTimeout(() => pushState(), 80);
 }
 
 function closeObjPopup(){ document.getElementById('objPopup').classList.add('hidden'); }
