@@ -205,7 +205,7 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .rel-player-row:last-child{border:none}
 .rel-flag{font-size:20px;flex-shrink:0;width:28px;text-align:center}
 .rel-name{flex:1;font-weight:600}
-.rel-stance-btns{display:flex;gap:4px}
+.rel-stance-btns{display:flex;gap:4px;flex-wrap:wrap}
 .rel-stance-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim);padding:3px 9px;border-radius:20px;cursor:pointer;font-size:10px;font-weight:700;transition:all .15s}
 .rel-stance-btn.active-ally{background:#1c3a1c;border-color:var(--green);color:var(--green)}
 .rel-stance-btn.active-rival{background:#3a1c1c;border-color:var(--red);color:var(--red)}
@@ -292,6 +292,17 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .landing-card .lc-desc{font-size:11px;color:var(--text-dim);line-height:1.5}
 .landing-divider{display:flex;align-items:center;gap:10px;color:var(--text-dim);font-size:11px;margin:6px 0}
 .landing-divider::before,.landing-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+/* ── SAVED GAMES ── */
+.saved-games-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;text-align:left}
+.sg-item{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;transition:border-color .15s}
+.sg-item:hover{border-color:var(--border2)}
+.sg-flag{font-size:22px;flex-shrink:0;width:30px;text-align:center}
+.sg-info{flex:1;min-width:0}
+.sg-title{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sg-meta{font-size:10px;color:var(--text-dim);margin-top:1px}
+.sg-actions{display:flex;gap:5px;flex-shrink:0}
+.landing-card.saves-card{border-color:var(--gold)44;background:linear-gradient(135deg,var(--surface2) 60%,#2a1e0044)}
+.landing-card.saves-card:hover{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,165,42,.15)}
 /* room sub-forms inside landing */
 .room-form{margin-top:18px;text-align:left;display:none}
 .room-form.active{display:block}
@@ -625,6 +636,22 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
         <div class="lc-title">Play Solo</div>
         <div class="lc-desc">Play offline against AI-controlled nations. No Firebase needed — runs entirely in your browser.</div>
       </div>
+      <!-- Saved games — shown only when saves exist -->
+      <div id="savedGamesSection" style="display:none">
+        <div class="landing-divider">continue playing</div>
+        <div class="landing-card saves-card full-width" onclick="toggleSavedGames()" style="padding:12px 14px">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="font-size:22px">💾</span>
+            <div style="text-align:left">
+              <div class="lc-title">My Recent Games <span id="savedGamesCount" style="color:var(--gold);font-size:11px"></span></div>
+              <div class="lc-desc">Resume one of your last 5 sessions</div>
+            </div>
+            <span id="savedGamesChevron" style="margin-left:auto;color:var(--text-dim);font-size:14px">▼</span>
+          </div>
+        </div>
+        <div id="savedGamesList" class="saved-games-list" style="display:none"></div>
+      </div>
+
       <div class="landing-divider">more options</div>
       <div class="landing-cards">
         <div class="landing-card" onclick="showRoomBrowser()">
@@ -971,6 +998,18 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
     <div id="spyModalContent"></div>
     <div class="modal-footer">
       <button class="btn" onclick="document.getElementById('spyModal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CUSTOM CONFIRM MODAL ══ -->
+<div class="modal-overlay hidden" id="confirmModal">
+  <div class="modal" style="max-width:420px">
+    <h2 id="confirmModalTitle" style="font-size:16px;margin-bottom:8px">⚠️ Confirm</h2>
+    <p id="confirmModalMsg" style="font-size:13px;color:var(--text-dim);white-space:pre-line;line-height:1.5;margin:0 0 16px"></p>
+    <div class="modal-footer" style="gap:8px">
+      <button class="btn" onclick="_confirmCancel()">✕ Cancel</button>
+      <button class="btn danger" id="confirmModalOk" onclick="_confirmOk()">Confirm</button>
     </div>
   </div>
 </div>
@@ -2718,7 +2757,12 @@ function renderActionPanel(id){
   if(GS.phase === 'processing'){ el.innerHTML=`<div class="submitted-msg">⚙️ AI is processing the turn…</div>`; return; }
   if(GS.slots[id]?.offlineAI){ el.innerHTML=`<div class="submitted-msg" style="color:var(--orange)">💤 Away Mode Active<br><span style="font-size:10px;color:var(--text-dim)">The GM has put your country on temporary AI autopilot. It will take safe maintenance actions until you return. Ask the GM to hand back control.</span></div>`; return; }
   if(GS.slots[id]?.isAI){ el.innerHTML=`<div class="submitted-msg" style="color:var(--accent)">🤖 AI Country<br><span style="font-size:10px;color:var(--text-dim)">This is a GM-added AI nation. It decides its own actions each turn automatically.</span></div>`; return; }
-  if(c.submitted){ el.innerHTML=`<div class="submitted-msg">✓ Actions submitted!<br><span style="font-size:10px;color:var(--text-dim)">Waiting for other players…</span></div>`; return; }
+  if(c.submitted){
+    const submittedAct = c.actions?.[0];
+    const actLabel = submittedAct?.actionId ? `<div style="font-size:10px;color:var(--text-dim);margin-top:4px">📋 ${submittedAct.category} → ${submittedAct.actionId}</div>` : '';
+    el.innerHTML=`<div class="submitted-msg">✓ Actions submitted!${actLabel}<div style="margin-top:6px"><button class="btn" style="border-color:var(--orange);color:var(--orange);font-size:10px;padding:4px 10px" onclick="unsubmitTurn('${id}')">✏️ Edit Submission</button></div></div>`;
+    return;
+  }
 
   const sp = c.stockpile || {constructionMats:0,critMinerals:0,energy:0};
   const catKeys = Object.keys(ACTION_COSTS);
@@ -2985,6 +3029,8 @@ function submitActions(id){
   pushCountryActions(id);
   renderActionPanel(id);
   renderBottomBar();
+  renderDashboard();
+  renderCountryCard(id);
   toast('Action submitted! AI nations are moving…','success');
 }
 
@@ -2997,7 +3043,36 @@ function skipTurn(id){
   pushCountryActions(id);
   renderActionPanel(id);
   renderBottomBar();
+  renderDashboard();
+  renderCountryCard(id);
   toast('Turn skipped.','info');
+}
+
+function unsubmitTurn(id){
+  if(session.country !== id){ toast('You can only edit your own submission','error'); return; }
+  const c = GS.countries[id];
+  if(!c || !c.submitted){ return; }
+  // Only allow unsubmit during collecting phase
+  if(GS.phase !== 'collecting'){ toast('Turn is already being processed','error'); return; }
+  // Refund deducted costs
+  const prevAct = c.actions?.[0];
+  if(prevAct?.actionId){
+    const selAct = (ACTION_COSTS[prevAct.category]||[]).find(a=>a.id===prevAct.actionId);
+    if(selAct){
+      const sp = c.stockpile || {constructionMats:0,critMinerals:0,energy:0};
+      c.economy.pool = (c.economy.pool||0) + (selAct.eco||0);
+      sp.constructionMats = (sp.constructionMats||0) + (selAct.mat||0);
+      sp.critMinerals     = (sp.critMinerals||0)     + (selAct.min||0);
+      sp.energy           = (sp.energy||0)           + (selAct.egy||0);
+    }
+  }
+  c.submitted = false;
+  c.actions = [{category:'',actionId:'',note:'',warTarget:''}];
+  pushCountryActions(id);
+  renderActionPanel(id);
+  renderBottomBar();
+  renderDashboard();
+  toast('Submission cancelled — you can edit your action','info');
 }
 
 // ── Bottom Bar ──
@@ -3064,6 +3139,7 @@ function countryPillClick(id){
 function renderDashboard(){
   const el=document.getElementById('view-dashboard');
   if(!GS){ el.innerHTML='<p class="text-dim" style="padding:20px">Loading…</p>'; return; }
+  const _scrollTop = el.scrollTop; // preserve scroll position so buttons mid-page don't jump to top
   const id = session.country;
   if(id === 'gm'){ el.innerHTML='<p class="text-dim" style="padding:20px">GM does not have a country.</p>'; return; }
   if(session.role === 'spectator' || !GS.countries[id]){ el.innerHTML='<p class="text-dim" style="padding:20px">👁 Spectators do not have a country. View the Events or Chat tabs.</p>'; return; }
@@ -3318,6 +3394,23 @@ function renderDashboard(){
         // ── Policy Stance card ──
         const ep = c.economicPolicy||'mixed', sp = c.socialPolicy||'moderate';
         const eDef = POLICY_DEFS.economic[ep], sDef = POLICY_DEFS.social[sp];
+        // Format a single effect pill — numVal for sign, display for text, good=green
+        const effTag = (numVal, display, good) => {
+          if(!numVal) return '';
+          const color = good ? 'var(--green)' : 'var(--red)';
+          const sign  = numVal > 0 ? '+' : '';
+          return `<span style="font-size:10px;color:${color};font-weight:600">${sign}${display}</span>`;
+        };
+        // Build effects row for a policy def
+        const effRow = (def) => {
+          const tags = [];
+          if(def.incomePct)        tags.push(effTag(def.incomePct,       `${Math.round(def.incomePct*100)}% income/turn`,  def.incomePct > 0));
+          if(def.corruptionDrift)  tags.push(effTag(def.corruptionDrift, `${def.corruptionDrift} corruption/turn`,          def.corruptionDrift < 0));
+          if(def.stabilityDrift)   tags.push(effTag(def.stabilityDrift,  `${def.stabilityDrift} stability/turn`,            def.stabilityDrift > 0));
+          if(def.approvalDrift)    tags.push(effTag(def.approvalDrift,   `${def.approvalDrift} approval/turn`,              def.approvalDrift > 0));
+          if(def.migPressureDelta) tags.push(effTag(def.migPressureDelta,`${def.migPressureDelta} migration pressure`,      def.migPressureDelta < 0));
+          return tags.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">${tags.join('')}</div>` : `<div style="font-size:10px;color:var(--text-dim);margin-top:4px">No mechanical effects</div>`;
+        };
         const policyBtn = (pType, key, def) => {
           const isActive = (pType==='economic'?ep:sp)===key;
           return `<button class="policy-btn${isActive?' active':''}" onclick="setPolicyStance('${id}','${pType}','${key}')">
@@ -3332,14 +3425,22 @@ function renderDashboard(){
             ${policyBtn('economic','mixed',POLICY_DEFS.economic.mixed)}
             ${policyBtn('economic','state_controlled',POLICY_DEFS.economic.state_controlled)}
           </div>
-          <div style="font-size:10px;color:${eDef.color};margin:5px 0 2px">${eDef.icon} <strong>${eDef.label}</strong> — ${eDef.desc}</div>
-          <div style="font-size:10px;color:var(--text-dim);margin-top:8px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Social Policy</div>
+          <div style="margin:5px 0 2px">
+            <span style="font-size:11px;color:${eDef.color};font-weight:700">${eDef.icon} ${eDef.label}</span>
+            <span style="font-size:10px;color:var(--text-dim);margin-left:4px">— ${eDef.desc}</span>
+          </div>
+          ${effRow(eDef)}
+          <div style="font-size:10px;color:var(--text-dim);margin-top:10px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Social Policy</div>
           <div class="policy-grid">
             ${policyBtn('social','open',POLICY_DEFS.social.open)}
             ${policyBtn('social','moderate',POLICY_DEFS.social.moderate)}
             ${policyBtn('social','closed',POLICY_DEFS.social.closed)}
           </div>
-          <div style="font-size:10px;color:${sDef.color};margin-top:5px">${sDef.icon} <strong>${sDef.label}</strong> — ${sDef.desc}</div>
+          <div style="margin:5px 0 2px">
+            <span style="font-size:11px;color:${sDef.color};font-weight:700">${sDef.icon} ${sDef.label}</span>
+            <span style="font-size:10px;color:var(--text-dim);margin-left:4px">— ${sDef.desc}</span>
+          </div>
+          ${effRow(sDef)}
         </div>`;
       })()}
       ${(()=>{
@@ -3437,6 +3538,7 @@ function renderDashboard(){
       }).join('')}</div>`:''}
     </div>
   `;
+  el.scrollTop = _scrollTop; // restore scroll after re-render
 }
 
 function sl(l,v,cc=''){return `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)"><span class="text-dim">${l}</span><span class="${cc?'text-'+cc:''} fw-700">${v}</span></div>`;}
@@ -3465,6 +3567,7 @@ function adjustDomesticBudget(countryId, pillar, delta){
   b[pillar] = Math.max(0, cur + delta);
   pushState();
   renderDashboard();
+  renderCountryCard(countryId);
 }
 
 // ── GM Console (GM only) ──
@@ -3756,7 +3859,11 @@ function advanceTurn(){
 function deleteRoom(){
   if(session.country !== 'gm'){ toast('Only the GM can delete a room','error'); return; }
   if(!_roomCode){ toast('No room to delete','error'); return; }
-  if(!confirm('Delete room ' + _roomCode + '? This cannot be undone.')){ return; }
+  showConfirm('Delete room ' + _roomCode + '?\n\nThis cannot be undone.', ()=>{
+    _deleteRoomConfirmed();
+  }, '🗑 Delete Room');
+}
+function _deleteRoomConfirmed(){
   const codeToDelete = _roomCode;
   const url = FIREBASE_CONFIG.databaseURL + '/rooms/' + codeToDelete + '.json';
   fetch(url, { method: 'DELETE' })
@@ -5317,11 +5424,12 @@ function processTurn(internal=false){
 
 function resetGame(){
   if(session.country !== 'gm'){ toast('Only the GM can reset the game','error'); return; }
-  if(!confirm('⚠️ Reset the entire game back to Turn 0?\n\nAll turns, economy changes, and actions will be wiped. This cannot be undone.')) return;
-  GS = clone(INITIAL_STATE);
-  if(_roomCode) GS.phase = 'collecting';
-  pushState();
-  toast('Game reset to Turn 0','success');
+  showConfirm('Reset the entire game back to Turn 0?\n\nAll turns, economy changes, and actions will be wiped. This cannot be undone.', ()=>{
+    GS = clone(INITIAL_STATE);
+    if(_roomCode) GS.phase = 'collecting';
+    pushState();
+    toast('Game reset to Turn 0','success');
+  }, '⚠️ Reset Game');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -6006,10 +6114,11 @@ function postNewsItem(){
 
 function deleteNewsItem(id){
   if(session.country !== 'gm') return;
-  if(!confirm('Delete this bulletin?')) return;
-  GS.newsBoard = (GS.newsBoard||[]).filter(n=>n.id!==id);
-  pushState();
-  toast('Bulletin deleted','success');
+  showConfirm('Delete this bulletin?', ()=>{
+    GS.newsBoard = (GS.newsBoard||[]).filter(n=>n.id!==id);
+    pushState();
+    toast('Bulletin deleted','success');
+  }, '🗑 Delete', true);
 }
 
 // ── Log ──
@@ -6194,6 +6303,14 @@ function claimCountry(){
 
   const doJoin = () => {
     setSession({ name: _pickerName, country: _pickerSelected, roomCode: _roomCode || null, pid: _pid });
+    // Save to recents
+    const _rmMeta = PLAYER_META[_pickerSelected] || PLAYABLE_COUNTRIES[_pickerSelected];
+    saveToRecents({
+      type: 'room', roomCode: _roomCode,
+      country: _pickerSelected,
+      countryFlag: _rmMeta?.flag || '🌍',
+      playerName: _pickerName, turn: GS?.turn || 1
+    });
     document.getElementById('pickerOverlay').classList.add('hidden');
     bootApp();
   };
@@ -6337,9 +6454,141 @@ function genRoomCode(){
   return c;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  SAVED GAMES
+// ══════════════════════════════════════════════════════════════
+const _SAVES_KEY = 'sovereign_savedGames';
+
+function getSavedGames(){
+  try { return JSON.parse(localStorage.getItem(_SAVES_KEY)) || []; } catch { return []; }
+}
+
+function saveToRecents(entry){
+  let saves = getSavedGames();
+  // Dedup: room games by roomCode+country, solo by country
+  const entryKey = entry.type === 'room' ? `room:${entry.roomCode}:${entry.country}` : `solo:${entry.country}`;
+  saves = saves.filter(s => {
+    const sk = s.type === 'room' ? `room:${s.roomCode}:${s.country}` : `solo:${s.country}`;
+    return sk !== entryKey;
+  });
+  saves.unshift({ ...entry, savedAt: Date.now() });
+  saves = saves.slice(0, 5);
+  localStorage.setItem(_SAVES_KEY, JSON.stringify(saves));
+}
+
+function updateSavesTurn(){
+  // Called from bootApp to keep turn count current
+  if(!GS || !session?.country) return;
+  const saves = getSavedGames();
+  const isRoom = !!_roomCode;
+  const entryKey = isRoom ? `room:${_roomCode}:${session.country}` : `solo:${session.country}`;
+  const idx = saves.findIndex(s => {
+    const sk = s.type === 'room' ? `room:${s.roomCode}:${s.country}` : `solo:${s.country}`;
+    return sk === entryKey;
+  });
+  if(idx >= 0){
+    saves[idx].turn = GS.turn || 1;
+    saves[idx].savedAt = Date.now();
+    localStorage.setItem(_SAVES_KEY, JSON.stringify(saves));
+  }
+}
+
+function renderSavedGamesOnLanding(){
+  const section = document.getElementById('savedGamesSection');
+  const countEl = document.getElementById('savedGamesCount');
+  if(!section) return;
+  const saves = getSavedGames();
+  if(!saves.length){ section.style.display='none'; return; }
+  section.style.display = '';
+  if(countEl) countEl.textContent = `(${saves.length})`;
+}
+
+function toggleSavedGames(){
+  const list = document.getElementById('savedGamesList');
+  const chevron = document.getElementById('savedGamesChevron');
+  if(!list) return;
+  const open = list.style.display !== 'none';
+  if(open){
+    list.style.display = 'none';
+    if(chevron) chevron.textContent = '▼';
+  } else {
+    renderSavedGamesList();
+    list.style.display = '';
+    if(chevron) chevron.textContent = '▲';
+  }
+}
+
+function renderSavedGamesList(){
+  const list = document.getElementById('savedGamesList');
+  if(!list) return;
+  const saves = getSavedGames();
+  if(!saves.length){
+    list.innerHTML = '<p style="text-align:center;color:var(--text-dim);font-size:12px;padding:10px 0">No saved games yet.</p>';
+    return;
+  }
+  list.innerHTML = saves.map((s, i) => {
+    const date = new Date(s.savedAt).toLocaleDateString([], { month:'short', day:'numeric' });
+    const time = new Date(s.savedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const typeLabel = s.type === 'room'
+      ? `<span style="color:var(--accent)">Room ${s.roomCode}</span>`
+      : `<span style="color:#7c3aed">Solo · ${s.difficulty||'normal'}</span>`;
+    const turnLabel = s.turn ? `Turn ${s.turn}` : 'Turn 1';
+    return `<div class="sg-item">
+      <span class="sg-flag">${s.countryFlag||'🌍'}</span>
+      <div class="sg-info">
+        <div class="sg-title">${s.country} <span style="color:var(--text-dim);font-weight:400">· ${s.playerName}</span></div>
+        <div class="sg-meta">${typeLabel} · ${turnLabel} · ${date} ${time}</div>
+      </div>
+      <div class="sg-actions">
+        <button class="btn primary" style="font-size:11px;padding:4px 11px;min-height:0" onclick="resumeSavedGame(${i})">▶ Resume</button>
+        <button class="btn" style="font-size:11px;padding:4px 8px;min-height:0;border-color:var(--border2)" onclick="deleteSavedGame(${i})" title="Remove">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function resumeSavedGame(index){
+  const saves = getSavedGames();
+  const s = saves[index];
+  if(!s){ toast('Saved game not found','error'); return; }
+
+  if(s.type === 'solo'){
+    // Restore solo session and boot
+    const raw = localStorage.getItem('csr_offline');
+    if(!raw){ toast('Solo save data not found — it may have been cleared','error'); return; }
+    _soloMode = true;
+    setSession({ name: s.playerName, country: s.country, roomCode: null, soloMode: true });
+    document.getElementById('landingOverlay').classList.add('hidden');
+    bootApp();
+  } else {
+    // Room: connect Firebase and show login
+    if(!isFirebaseConfigured()){ toast('Firebase not configured — cannot join rooms','error'); return; }
+    _roomCode = s.roomCode;
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    gsRef = db.ref(gsPath());
+    document.getElementById('landingOverlay').classList.add('hidden');
+    showLoginForRoom(s.roomCode, false);
+  }
+}
+
+function deleteSavedGame(index){
+  let saves = getSavedGames();
+  saves.splice(index, 1);
+  localStorage.setItem(_SAVES_KEY, JSON.stringify(saves));
+  renderSavedGamesList();
+  renderSavedGamesOnLanding();
+  if(!saves.length){
+    // Close the list if empty
+    document.getElementById('savedGamesList').style.display='none';
+    document.getElementById('savedGamesChevron').textContent='▼';
+  }
+}
+
 function showLanding(){
   document.getElementById('landingOverlay').classList.remove('hidden');
   document.getElementById('loginOverlay').classList.add('hidden');
+  renderSavedGamesOnLanding();
 }
 
 function backToLanding(){
@@ -6910,8 +7159,9 @@ function logisticsFactor(ac,dc){
 
 function promptDeclareWar(attacker, defender){
   if(session.country !== attacker){ toast('Not your country','error'); return; }
-  if(!confirm(`⚔️ Declare WAR on ${defender}?\n\nCombat will be resolved automatically by the AI GM each turn. Wars cost stability and battalions. Peace happens when stability collapses or after 6 rounds.\n\nContinue?`)) return;
-  declareWar(attacker, defender);
+  showConfirm(`Declare WAR on ${defender}?\n\nCombat will be resolved automatically each turn. Wars cost stability and battalions. Peace happens when stability collapses or after 6 rounds.`, ()=>{
+    declareWar(attacker, defender);
+  }, '⚔️ Declare War');
 }
 
 function declareWar(attacker, defender){
@@ -7044,6 +7294,7 @@ function chatPath(){ return _roomCode ? 'rooms/'+_roomCode+'/chat' : 'gameState/
 let _chatListener = null;
 let _chatInited = false;
 let _unreadChat = 0;
+let _chatInitTime = 0; // timestamp when chat was first loaded; messages before this don't trigger badge
 function _updateChatBadge(){
   const b=document.getElementById('chatBadge');
   if(!b) return;
@@ -7055,6 +7306,7 @@ function initChat(){
   if(!isFirebaseConfigured()||!db) return;
   if(_chatInited) return;
   _chatInited = true;
+  _chatInitTime = Date.now(); // only messages arriving AFTER this time trigger the badge
   const el = document.getElementById('chat-messages');
   if(el) el.innerHTML='';
   db.ref(chatPath()).limitToLast(120).on('child_added', snap=>{
@@ -7087,9 +7339,10 @@ function appendChatMsg(msg){
     </div>`;
   el.appendChild(div);
   el.scrollTop=el.scrollHeight;
-  // Badge: increment if chat tab isn't currently active
+  // Badge: only increment for NEW messages (arrived after chat was initialized) when tab is not active
   const chatTabActive = document.getElementById('view-chat')?.classList.contains('active');
-  if(!chatTabActive && !isMe){ _unreadChat++; _updateChatBadge(); }
+  const isNewMsg = !msg.ts || msg.ts > _chatInitTime;
+  if(!chatTabActive && !isMe && isNewMsg){ _unreadChat++; _updateChatBadge(); }
 }
 
 function sendChat(){
@@ -7209,33 +7462,44 @@ function assignObjective(id, tier){
 }
 
 function showObjectivesPopup(id, force){
-  if(!GS || !GS.slots[id]) return;
-  let obj = GS.slots[id].currentObjective;
+  if(!GS) return;
+  // Create slot entry if missing (e.g. solo mode)
+  if(!GS.slots) GS.slots = {};
+  if(!GS.slots[id]) GS.slots[id] = {};
+  const slot = GS.slots[id];
+
+  let obj = slot.currentObjective;
   const isNew = !obj;
   if(!obj){
     obj = assignObjective(id, 0);
-    if(!obj) return;
-    GS.slots[id].seenObjective = null; // new objective — will be shown
+    if(!obj){
+      toast('No objectives available yet','info');
+      return;
+    }
+    slot.seenObjective = null; // new objective — will be shown
     pushState();
   }
   // Don't auto-show on login if already seen this objective (unless forced by button click)
-  if(!force && GS.slots[id].seenObjective === obj.id) return;
+  if(!force && slot.seenObjective === obj.id) return;
 
   // Mark as seen so it won't re-appear on next login
-  GS.slots[id].seenObjective = obj.id;
-  if(!isNew) pushState(); // only push if we didn't already push above
+  slot.seenObjective = obj.id;
+  if(!isNew) pushState();
 
   const popup = document.getElementById('objPopup');
   const content = document.getElementById('objPopupContent');
-  const completed = GS.slots[id].completedObjectives || [];
+  if(!popup || !content){ toast('Objective panel not found','error'); return; }
+
+  const completed = slot.completedObjectives || [];
+  const tierNum = (obj.tier !== undefined ? obj.tier : 0);
   content.innerHTML = `
     ${completed.length ? `<div class="obj-complete-banner">✅ Completed ${completed.length} objective${completed.length!==1?'s':''} — you've been rewarded</div>` : ''}
     <div class="obj-card">
-      <div class="obj-tier">Tier ${obj.tier+1} Objective</div>
+      <div class="obj-tier">Tier ${tierNum+1} Objective</div>
       <div class="obj-title">🎯 ${obj.text}</div>
       <div class="obj-reward" style="margin-top:6px">Reward: ${obj.reward}</div>
     </div>
-    <div style="font-size:11px;color:var(--text-dim)">Complete this to receive your reward and unlock a harder Tier ${Math.min(obj.tier+2,3)} objective.</div>
+    <div style="font-size:11px;color:var(--text-dim)">Complete this to receive your reward and unlock a harder Tier ${Math.min(tierNum+2,3)} objective.</div>
   `;
   popup.classList.remove('hidden');
 }
@@ -7384,8 +7648,12 @@ function launchSpyOp(id, opId){
   if(c.economy.pool < op.eco){ toast('Not enough eco','error'); return; }
   if((c.diplomacy.points||0) < op.dipPts){ toast('Not enough diplomatic points','error'); return; }
   if((c.stockpile?.critMinerals||0) < op.min){ toast('Not enough critical minerals','error'); return; }
-  if(!confirm(`Launch ${op.name} against ${target}?\n\nDetection risk: ${Math.round(op.risk*100)}%\nCost: ${op.eco} eco, ${op.dipPts} diplo pts${op.min?', '+op.min+' minerals':''}`)) return;
+  showConfirm(`Launch ${op.name} against ${target}?\n\nDetection risk: ${Math.round(op.risk*100)}%\nCost: ${op.eco} eco, ${op.dipPts} diplo pts${op.min?', '+op.min+' minerals':''}`, ()=>{
+    _executeLaunchSpyOp(id, opId, target, c, op);
+  }, `🕵️ Launch Op`);
+}
 
+function _executeLaunchSpyOp(id, opId, target, c, op){
   c.economy.pool -= op.eco;
   c.diplomacy.points = (c.diplomacy.points||0) - op.dipPts;
   if(c.stockpile) c.stockpile.critMinerals = (c.stockpile.critMinerals||0) - op.min;
@@ -9510,6 +9778,32 @@ function toast(msg,type='info'){
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
 // ══════════════════════════════════════════════════════════════
+//  CUSTOM CONFIRM MODAL
+// ══════════════════════════════════════════════════════════════
+let _confirmCallback = null;
+function showConfirm(msg, onOk, okLabel, isDanger){
+  okLabel  = okLabel  === undefined ? 'Confirm'  : okLabel;
+  isDanger = isDanger === undefined ? true       : isDanger;
+  const modal = document.getElementById('confirmModal');
+  if(!modal){ if(onOk && confirm(msg)) onOk(); return; } // fallback if modal missing
+  document.getElementById('confirmModalMsg').textContent = msg;
+  const okBtn = document.getElementById('confirmModalOk');
+  okBtn.textContent = okLabel;
+  okBtn.className = isDanger ? 'btn danger' : 'btn primary';
+  _confirmCallback = onOk;
+  modal.classList.remove('hidden');
+}
+function _confirmOk(){
+  document.getElementById('confirmModal').classList.add('hidden');
+  const cb = _confirmCallback; _confirmCallback = null;
+  if(cb) cb();
+}
+function _confirmCancel(){
+  document.getElementById('confirmModal').classList.add('hidden');
+  _confirmCallback = null;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════════════════
 function bootUI(){
@@ -9897,6 +10191,13 @@ function initSoloGame(playerCountry, gov){
   pushState(); // saves to localStorage
 
   setSession({ name, country: playerCountry, roomCode: null, soloMode: true });
+  // Save to recents
+  const _soloMeta = PLAYER_META[playerCountry] || PLAYABLE_COUNTRIES[playerCountry];
+  saveToRecents({
+    type: 'solo', country: playerCountry,
+    countryFlag: _soloMeta?.flag || '🌍',
+    playerName: name, turn: 1, difficulty: diff
+  });
   document.getElementById('pickerOverlay').classList.add('hidden');
   bootApp();
 
@@ -10315,6 +10616,7 @@ async function bootApp(){
     setupTabs();
     activateTab('dashboard');
     updateAllUI();
+    updateSavesTurn(); // keep saved-game turn count current
     await initMap();
     return;
   }
@@ -10328,6 +10630,7 @@ async function bootApp(){
   if(session.country === 'gm') activateTab('gm');
   else if(session.role === 'spectator') activateTab('events');
   setTimeout(()=>{ initChat(); if(_roomCode) initTurnTimer(); }, 1200);
+  setTimeout(()=>{ updateSavesTurn(); }, 3000); // update turn count after GS loads from Firebase
   if(_roomCode && session.country && session.country!=='gm' && session.role!=='spectator'){
     setTimeout(()=>{
       if(GS && GS.slots && GS.slots[session.country]) showObjectivesPopup(session.country);
@@ -10348,7 +10651,7 @@ window.addEventListener('DOMContentLoaded', () => {
   } else {
     // No session — show landing screen so players can choose room vs main game
     document.getElementById('loginOverlay').classList.add('hidden');
-    showLanding();
+    showLanding(); // showLanding() calls renderSavedGamesOnLanding() internally
   }
 });
 </script>
