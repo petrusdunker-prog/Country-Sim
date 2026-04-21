@@ -2576,7 +2576,6 @@ function renderCountryCard(id){
       ${rr('Food',c.resources.food,c.resourceBalance.food)}
       ${rr('Water',c.resources.water,c.resourceBalance.water)}
       ${rr('Minerals',c.resources.minerals,c.resourceBalance.minerals)}
-      ${rr('Construction',c.resources.construction,0)}
       ${rr('Mfg Goods',c.resources.mfgGoods,c.resourceBalance.mfgGoods)}
       ${rr('Services',c.resources.services,c.resourceBalance.services)}
     </table>
@@ -2593,7 +2592,7 @@ function renderCountryCard(id){
       <span title="Base replenishment + bonus from Minerals in stock">💎 <strong>${c.stockpile.critMinerals||0}</strong> <span class="text-dim">(+${(c.stockpileRate?.critMinerals||0)+minBonus}/t${minBonus>0?` <span style="color:var(--green)">+${minBonus} from stock</span>`:''})</span></span>
       <span title="Base replenishment + bonus from energy balance">⚡ <strong>${c.stockpile.energy||0}</strong> <span class="text-dim">(+${(c.stockpileRate?.energy||0)+energyBonus}/t${energyBonus>0?` <span style="color:var(--green)">+${energyBonus} energy</span>`:''})</span></span>
     </div>
-    <div style="font-size:10px;color:var(--text-dim);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:var(--radius)">💡 Buy <strong>Minerals</strong> or <strong>Construction Mats</strong> on the market to boost your build stockpile each turn.</div>`;
+    <div style="font-size:10px;color:var(--text-dim);margin-top:4px;padding:4px 6px;background:var(--surface2);border-radius:var(--radius)">💡 Buy <strong>🧱 Construction Mats</strong>, <strong>💎 Critical Minerals</strong> or <strong>⚡ Energy</strong> on the market to top up your build stockpile directly.</div>`;
     })():''}
     ${c.civilWar?`<div style="margin-top:8px;padding:7px 10px;background:#1a0a0a;border:1px solid var(--red)44;border-radius:var(--radius)">
       <div style="font-size:11px;font-weight:700;color:var(--red)">🔥 CIVIL WAR — Severity ${c.civilWar.severity}/3</div>
@@ -3234,7 +3233,6 @@ function renderDashboard(){
           ${rr('Food',c.resources.food,c.resourceBalance.food)}
           ${rr('Water',c.resources.water,c.resourceBalance.water)}
           ${rr('Minerals',c.resources.minerals,c.resourceBalance.minerals)}
-          ${rr('Construction',c.resources.construction,0)}
           ${rr('Mfg Goods',c.resources.mfgGoods,c.resourceBalance.mfgGoods)}
           ${rr('Services',c.resources.services,c.resourceBalance.services)}
         </table>
