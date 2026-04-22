@@ -6763,6 +6763,8 @@ function copyRoomCode(){
 // ══════════════════════════════════════════════════════════════
 function checkAiAutoProcess(){
   if(!_roomCode || !GS || GS.phase !== 'collecting') return;
+  // Skip if processTurn(true) from updateAllUI already handled this turn
+  if(_lastAutoProcessedTurn === GS.turn) return;
   const slotIds = Object.keys(GS.slots || {});
   if(slotIds.length === 0) return;
   // Offline AI players count as submitted (they'll be handled in aiProcessTurn)
@@ -9758,16 +9760,24 @@ function updateAllUI(){
     const playerCount = Object.keys(GS.slots||{}).length;
     if(playerCount > 0){ advanceTurn(); return; }
   }
-  // Auto-process when all players submitted — ANY client in a room can trigger this
-  // (GM may not be logged in, so we can't restrict to GM-only)
+  // Auto-process when all HUMAN players submitted — ANY client in a room can trigger this.
+  // Exclude isAI slots: they self-submit inside processTurn, so counting them here causes
+  // an infinite loop (Firebase echoes back the new state, AI still submitted → fires again).
+  // offlineAI (human-away) slots are also excluded: aiProcessTurn handles those via checkAiAutoProcess.
   if(_roomCode && GS.phase === 'collecting'){
-    const slottedIds = Object.keys(GS.slots||{}).filter(id => id !== 'gm');
+    const slottedIds = Object.keys(GS.slots||{}).filter(id =>
+      id !== 'gm' && !GS.slots[id]?.isAI && !GS.slots[id]?.offlineAI
+    );
     const total = slottedIds.length;
     const submitted = slottedIds.filter(id => GS.countries[id]?.submitted).length;
     // Guard: only process each turn once per client (prevents double-fire on rapid Firebase events)
     if(total > 0 && submitted >= total && GS.turn !== _lastAutoProcessedTurn){
       _lastAutoProcessedTurn = GS.turn;
-      processTurn(true); return; // internal=true bypasses GM-only guard
+      processTurn(true);
+      // Update guard to the NEW turn so the Firebase echo with pre-submitted AI countries
+      // doesn't re-fire processTurn for the same logical round.
+      _lastAutoProcessedTurn = GS.turn;
+      return;
     }
   }
   // Always refresh GM console for GM (they need real-time action updates)
