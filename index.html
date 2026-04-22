@@ -2233,6 +2233,18 @@ function initFirebase(){
       const data = snap.val();
       if(data){
         GS = normalizeState(data);
+        // ── Stuck-processing recovery ──────────────────────────────────────────
+        // If a turn was being processed but the tab crashed / write failed,
+        // the game can be left in phase='processing' forever.
+        // After 2 minutes with no progress, auto-reset to collecting so players
+        // can resubmit and the game continues.
+        if(GS.phase === 'processing' && GS.processingStartedAt &&
+           (Date.now() - GS.processingStartedAt) > 120000){
+          console.warn('[recovery] Stuck in processing for >2 min — resetting to collecting');
+          GS.phase = 'collecting';
+          GS.processingStartedAt = null;
+          pushState();
+        }
         // Auto-clear Away AI when the real player reconnects
         const myId = session.country;
         if(myId && myId !== 'gm' && GS.slots?.[myId]?.offlineAI){
@@ -2269,13 +2281,21 @@ function initFirebase(){
 }
 
 function pushState(){
+  // Always trim before ANY push to stay under Firebase's 256 KB per-write limit.
+  // newsBoard grows ~10 items/turn and turnLog grows 1 entry/turn — without this
+  // every push after ~15 turns silently fails, leaving phase='processing' forever.
+  if(GS){
+    if((GS.newsBoard||[]).length > 120) GS.newsBoard = GS.newsBoard.slice(0, 120);
+    if((GS.turnLog||[]).length   > 15)  GS.turnLog   = GS.turnLog.slice(0, 15);
+  }
   if(gsRef){
     gsRef.set(GS).catch(err => {
       console.error('[pushState] Firebase write failed:', err);
-      // If we were in processing phase and the write failed, recover to collecting
+      // If the write failed while processing a turn, auto-recover to collecting
       // so the game doesn't freeze permanently.
-      if(GS.phase === 'processing'){
+      if(GS && GS.phase === 'processing'){
         GS.phase = 'collecting';
+        GS.processingStartedAt = null;
         gsRef.set(GS).catch(e => console.error('[pushState] Recovery write also failed:', e));
       }
     });
@@ -5180,6 +5200,7 @@ function processTurn(internal=false){
   if(Object.keys(GS.slots||{}).length < 1){ toast('At least 1 player must be in the game.','error'); return; }
   if(GS.phase !== 'collecting'){ return; } // race-condition guard: another client already started processing
   GS.phase = 'processing'; // lock immediately so no other client double-fires
+  GS.processingStartedAt = Date.now(); // for stuck-processing recovery
   const entry={turn:GS.turn+1,date:getTurnDate(GS.turn+1),actions:{}};
   // Submit smart AI actions for full AI countries (isAI slots, not offlineAI)
   Object.entries(GS.countries).forEach(([id, c]) => {
@@ -5430,10 +5451,9 @@ function processTurn(internal=false){
   generateTurnEvents(GS.turn);
   const _chron=generateTurnChronicle(GS.turn-1);
   if(_chron){ if(!GS.newsBoard)GS.newsBoard=[]; GS.newsBoard.unshift(_chron); }
-  // Trim accumulated data so Firebase writes stay under the 256 KB limit
-  if(GS.turnLog.length  > 15)  GS.turnLog  = GS.turnLog.slice(0, 15);
-  if((GS.newsBoard||[]).length > 120) GS.newsBoard = GS.newsBoard.slice(0, 120);
-  pushState(); toast('Turn '+GS.turn+' processed!','success');
+  GS.processingStartedAt = null; // clear recovery timestamp
+  pushState(); // pushState() trims newsBoard/turnLog automatically before sending
+  toast('Turn '+GS.turn+' processed!','success');
 }
 
 function resetGame(){
@@ -6782,7 +6802,8 @@ function aiProcessTurn(){
   if(!_roomCode || !GS) return;
   if(GS.phase === 'processing') return; // guard against double-run
   GS.phase = 'processing';
-  pushState(); // lock phase immediately so other clients see it
+  GS.processingStartedAt = Date.now(); // for stuck-processing recovery
+  pushState(); // lock phase — pushState() trims newsBoard/turnLog before sending
   setTimeout(() => {
     try {
     const entry = { turn: GS.turn+1, date: getTurnDate(GS.turn+1), actions: {} };
@@ -6931,24 +6952,21 @@ function aiProcessTurn(){
       };
     });
     GS.turnLog.unshift(entry);
-    // Trim old data to stay under Firebase's 256 KB per-write limit.
-    // Without trimming the newsBoard grows ~10 items/turn and causes silent
-    // write failures after ~15 turns, leaving phase='processing' permanently.
-    if(GS.turnLog.length  > 15)  GS.turnLog  = GS.turnLog.slice(0, 15);
-    if((GS.newsBoard||[]).length > 120) GS.newsBoard = GS.newsBoard.slice(0, 120);
     GS.turn++;
     GS.phase = 'collecting';
+    GS.processingStartedAt = null; // clear recovery timestamp
     if(_roomCode) startTurnTimer();
     generateTurnEvents(GS.turn);
-    pushState();
+    pushState(); // pushState() trims newsBoard/turnLog automatically before sending
     toast('🤖 AI GM: Turn ' + GS.turn + ' processed!','success');
     } catch(err) {
       // If any processing function throws, recover gracefully instead of
       // freezing the game in 'processing' phase forever.
       console.error('[aiProcessTurn] Error during turn processing:', err);
       GS.phase = 'collecting';
+      GS.processingStartedAt = null;
       pushState();
-      toast('⚠️ Turn processing hit an error — game continues from next turn', 'error');
+      toast('⚠️ Turn processing hit an error — game recovered', 'error');
     }
   }, 800);
 }
