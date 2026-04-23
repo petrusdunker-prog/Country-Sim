@@ -1567,8 +1567,8 @@ const PLAYABLE_COUNTRIES = {
   'Switzerland':     {iso2:'ch', flag:'🇨🇭',isoNum:'756',continent:'Europe',         color:'#e74c3c',pop:8,   urb:74,mf:90,eco:20,bat:14, up:1, net:10,bal:{food:-3,water:1,minerals:-2,mfgGoods:2,services:6,energy:-3}},
   'Greece':          {iso2:'gr', flag:'🇬🇷',isoNum:'300',continent:'Europe',         color:'#00bcd4',pop:10,  urb:80,mf:55,eco:10,bat:80, up:8, net:4, bal:{food:1,water:0,minerals:0,mfgGoods:-2,services:2,energy:-2}},
   // ── MIDDLE EAST ──
-  // Saudi: energy colossus, imports almost all food/water/manufactured goods
-  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:40,bat:180,up:18,net:9, bal:{food:-4,water:-4,minerals:3,mfgGoods:-4,services:-2,energy:8}},
+  // Saudi: energy colossus, imports food/water/mfg but has oil wealth to pay for it
+  'Saudi Arabia':    {iso2:'sa', flag:'🇸🇦',isoNum:'682',continent:'Middle East',    color:'#c9a227',pop:36,  urb:84,mf:10,eco:55,bat:180,up:18,net:11,bal:{food:-2,water:-2,minerals:3,mfgGoods:-2,services:0,energy:8},startRes:{food:20,water:20,mfgGoods:15}},
   'Iran':            {iso2:'ir', flag:'🇮🇷',isoNum:'364',continent:'Middle East',    color:'#388e3c',pop:87,  urb:77,mf:5, eco:20,bat:220,up:22,net:5, bal:{food:-1,water:-1,minerals:3,mfgGoods:-3,services:-2,energy:5}},
   'Israel':          {iso2:'il', flag:'🇮🇱',isoNum:'376',continent:'Middle East',    color:'#6fa8dc',pop:10,  urb:93,mf:50,eco:14,bat:100,up:10,net:7, bal:{food:-2,water:-3,minerals:-1,mfgGoods:1,services:4,energy:-2}},
   'Egypt':           {iso2:'eg', flag:'🇪🇬',isoNum:'818',continent:'Middle East',    color:'#d4ac0d',pop:104, urb:43,mf:20,eco:14,bat:150,up:15,net:5, bal:{food:-2,water:-1,minerals:1,mfgGoods:-2,services:0,energy:1}},
@@ -2014,7 +2014,7 @@ function makeCountryState(id){
     mediaFreedom: pc.mf,
     economy:{pool:pc.eco, baseIncome:pc.eco, stateIncome:5, tradeIncome:0, militaryUpkeep:upkeep, netIncome:net},
     military:{battalions:pc.bat, mechDivisions:0, fleets:0, carrierGroups:0, airWings:0, bomberWings:0, readiness:'Low', nukes:false},
-    resources:{food:5,water:5,minerals:10,construction:10,mfgGoods:10,services:10},
+    resources:{food:pc.startRes?.food??5, water:pc.startRes?.water??5, minerals:pc.startRes?.minerals??10, construction:pc.startRes?.construction??10, mfgGoods:pc.startRes?.mfgGoods??10, services:pc.startRes?.services??10},
     resourceBalance: pc.bal,
     // Trackable construction resources for structured actions
     stockpile:{ constructionMats: Math.max(3, (pc.bal.minerals||0)*2), critMinerals: Math.max(2, pc.bal.minerals||0), energy: Math.max(4, ((pc.bal.energy||0)*2)+5) },
@@ -2352,6 +2352,15 @@ function normalizeState(s){
   if(!s.market.inTransit) s.market.inTransit = [];
   if(s.turnDeadline === undefined) s.turnDeadline = null;
   if(!s.slots) s.slots = {};
+  // Ensure every slot has an autoBuyRules map with defaults for each tradeable resource
+  Object.values(s.slots).forEach(slot => {
+    if(!slot) return;
+    if(!slot.autoBuyRules) slot.autoBuyRules = {};
+    Object.keys(MARKET_RESOURCES).forEach(res => {
+      if(!slot.autoBuyRules[res])
+        slot.autoBuyRules[res] = {enabled:false, threshold:10, maxPriceEach:6, maxQty:5};
+    });
+  });
   if(!s.countries) s.countries = {};
   Object.values(s.countries).forEach(c => {
     c.projects             = c.projects             || [];
@@ -8747,6 +8756,62 @@ function renderMarketTab(){
     <div style="font-size:10px;color:var(--text-dim);margin-top:5px">Resources held in escrow until sold. Unsold offers auto-expire after 3 turns and are returned to you.</div>
   </div>` : '';
 
+  // ── Auto-Buy Rules Panel ──
+  let autoBuyHtml = '';
+  if(myC && !isGM){
+    const rules = GS.slots?.[myId]?.autoBuyRules || {};
+    const activeCount = Object.values(rules).filter(r=>r&&r.enabled).length;
+    autoBuyHtml = `<div class="market-post-form" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none" onclick="document.getElementById('autoBuyBody').style.display=document.getElementById('autoBuyBody').style.display==='none'?'block':'none'">
+        <h3 style="margin:0">🤖 Auto-Buy Rules</h3>
+        <span style="font-size:11px;background:${activeCount>0?'var(--accent)22':'var(--surface2)'};color:${activeCount>0?'var(--accent)':'var(--text-dim)'};border:1px solid ${activeCount>0?'var(--accent)44':'var(--border2)'};border-radius:8px;padding:1px 8px">${activeCount} active</span>
+        <span style="font-size:10px;color:var(--text-dim);margin-left:auto">▼ click to expand</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin:4px 0 8px">Automatically purchase resources each turn when your stock falls below a threshold. Buys from cheapest available offer at or below your max price.</div>
+      <div id="autoBuyBody" style="display:none">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="color:var(--text-dim)">
+            <th style="text-align:left;padding:4px 6px">Resource</th>
+            <th style="padding:4px 6px;text-align:center">Enable</th>
+            <th style="padding:4px 6px;text-align:center">Buy below</th>
+            <th style="padding:4px 6px;text-align:center">Max price</th>
+            <th style="padding:4px 6px;text-align:center">Max qty/t</th>
+          </tr></thead>
+          <tbody>
+            ${Object.entries(MARKET_RESOURCES).map(([res,r])=>{
+              const rule = rules[res] || {enabled:false,threshold:10,maxPriceEach:6,maxQty:5};
+              const sk = r.isStockpile ? mktSKey(res) : null;
+              const stock = sk ? (myC.stockpile?.[sk]||0) : (myC.resources[res]||0);
+              const bal   = r.isStockpile ? (myC.stockpileRate?.[sk]||0) : (myC.resourceBalance?.[res]||0);
+              const warn  = rule.enabled && stock < rule.threshold;
+              return `<tr style="border-top:1px solid var(--border2);background:${warn?'#2a1a0044':''}">
+                <td style="padding:5px 6px"><span style="font-size:14px">${r.icon}</span> <strong>${r.label}</strong>
+                  <span style="font-size:9px;color:${bal<0?'var(--red)':bal>0?'var(--green)':'var(--text-dim)'}"> ${bal>0?'+':''}${bal}/t · ${stock} stk</span>
+                </td>
+                <td style="text-align:center;padding:5px 6px">
+                  <input type="checkbox" id="abEn_${res}" ${rule.enabled?'checked':''} style="width:14px;height:14px;cursor:pointer">
+                </td>
+                <td style="text-align:center;padding:5px 6px">
+                  <input type="number" id="abThr_${res}" value="${rule.threshold}" min="1" max="99" style="width:48px;text-align:center;font-size:11px">
+                </td>
+                <td style="text-align:center;padding:5px 6px">
+                  <input type="number" id="abPrc_${res}" value="${rule.maxPriceEach}" min="1" max="99" style="width:48px;text-align:center;font-size:11px">
+                </td>
+                <td style="text-align:center;padding:5px 6px">
+                  <input type="number" id="abQty_${res}" value="${rule.maxQty}" min="1" max="50" style="width:48px;text-align:center;font-size:11px">
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button class="btn primary" style="height:28px;font-size:11px" onclick="saveAutoBuyRules()">💾 Save Rules</button>
+          <span style="font-size:10px;color:var(--text-dim)">Rules activate at the start of each turn. Funds deducted automatically from your economy pool.</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
   // ── Negotiations ──
   let negHtml = '';
   try { negHtml = renderNegotiations(myId, myC); } catch(e){ console.error('renderNegotiations error:', e); }
@@ -8800,6 +8865,7 @@ function renderMarketTab(){
   el.innerHTML = `
     ${resBar}
     ${postForm}
+    ${autoBuyHtml}
     ${negHtml}
     <div class="market-two-col">
       <div>
@@ -8933,6 +8999,25 @@ function cancelMarketOffer(offerId){
   GS.market.offers.splice(idx, 1);
   pushState();
   toast('Offer cancelled — resources returned','info');
+  renderMarketTab();
+}
+
+function saveAutoBuyRules(){
+  if(!GS||!session.country||session.country==='gm') return;
+  if(!GS.slots) GS.slots = {};
+  if(!GS.slots[session.country]) GS.slots[session.country] = {};
+  if(!GS.slots[session.country].autoBuyRules) GS.slots[session.country].autoBuyRules = {};
+  let savedCount = 0;
+  Object.keys(MARKET_RESOURCES).forEach(res => {
+    const enabled  = document.getElementById('abEn_'+res)?.checked  ?? false;
+    const threshold= parseInt(document.getElementById('abThr_'+res)?.value) || 10;
+    const maxPrice = parseInt(document.getElementById('abPrc_'+res)?.value) || 6;
+    const maxQty   = parseInt(document.getElementById('abQty_'+res)?.value) || 5;
+    GS.slots[session.country].autoBuyRules[res] = { enabled, threshold, maxPriceEach:maxPrice, maxQty };
+    if(enabled) savedCount++;
+  });
+  pushState();
+  toast(`💾 Auto-buy rules saved — ${savedCount} rule${savedCount!==1?'s':''} active`, 'success');
   renderMarketTab();
 }
 
@@ -9512,6 +9597,52 @@ function processMarketTurn(){
     }
   });
   GS.market.offers = GS.market.offers.filter(o => (GS.turn - (o.postedTurn||0)) < 3);
+
+  // ── Auto-buy rules: execute standing buy orders for human players ──
+  Object.entries(GS.slots||{}).forEach(([id, slot]) => {
+    if(!slot || slot.isAI || slot.offlineAI) return;
+    const c = GS.countries[id];
+    if(!c || !slot.autoBuyRules) return;
+    Object.entries(slot.autoBuyRules).forEach(([res, rule]) => {
+      if(!rule || !rule.enabled) return;
+      const mktRes = MARKET_RESOURCES[res];
+      if(!mktRes) return;
+      const sk = mktRes.isStockpile ? mktSKey(res) : null;
+      const currentStock = sk ? (c.stockpile?.[sk]||0) : (c.resources[res]||0);
+      if(currentStock >= (rule.threshold||10)) return; // stock above threshold, no action needed
+      // Find eligible offers sorted cheapest first
+      const available = (GS.market.offers||[]).filter(o =>
+        o.seller !== id && o.resource === res &&
+        o.priceEach <= (rule.maxPriceEach||999) &&
+        getDiplomaticModifier(id, o.seller) !== null  // not embargoed
+      ).sort((a,b) => a.priceEach - b.priceEach);
+      let qtyRemaining = Math.max(1, rule.maxQty||5);
+      for(const o of available){
+        if(qtyRemaining <= 0 || c.economy.pool < o.priceEach) break;
+        const buyQty = Math.min(o.qty, qtyRemaining, Math.floor(c.economy.pool / o.priceEach));
+        if(buyQty <= 0) continue;
+        const totalCost = buyQty * o.priceEach;
+        c.economy.pool -= totalCost;
+        const sellerC = GS.countries[o.seller];
+        if(sellerC) sellerC.economy.pool += totalCost;
+        if(sk){ c.stockpile[sk] = (c.stockpile[sk]||0) + buyQty; }
+        else   { c.resources[res] = (c.resources[res]||0) + buyQty; }
+        if(buyQty >= o.qty){
+          GS.market.offers = GS.market.offers.filter(x => x.id !== o.id);
+        } else {
+          o.qty -= buyQty;
+        }
+        qtyRemaining -= buyQty;
+        if(!GS.newsBoard) GS.newsBoard = [];
+        GS.newsBoard.unshift({
+          id: Date.now().toString(36)+'_ab_'+res,
+          turn: GS.turn, type:'event', category:'market',
+          title:`🤖 ${id}: Auto-Buy ${mktRes.label}`,
+          body:`Auto-buy rule triggered: ${id} purchased ${buyQty}× ${mktRes.label} from ${o.seller} for ${totalCost} eco (stock was at ${currentStock}, below threshold ${rule.threshold}).`
+        });
+      }
+    });
+  });
 
   // ── Helper: post a sell offer from any seller (player AI or NPC) ──
   const postOffer = (sellerId, res, r, balanceVal) => {
