@@ -7705,9 +7705,13 @@ function showObjectivesPopup(id, force){
   `;
   popup.classList.remove('hidden');
 
-  // Mark as seen and push state AFTER popup is visible (deferred to avoid sync rerender race)
+  // Mark as seen and push immediately.
+  // The popup is a root-level overlay (#objPopup), NOT inside #dashContent, so
+  // the synchronous Firebase on('value') re-render triggered by pushState() cannot
+  // touch or hide it. The old 80 ms defer was losing currentObjective whenever a
+  // Firebase update replaced GS between show and push.
   slot.seenObjective = obj.id;
-  setTimeout(() => pushState(), 80);
+  pushState();
 }
 
 function closeObjPopup(){ document.getElementById('objPopup').classList.add('hidden'); }
