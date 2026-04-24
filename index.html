@@ -7346,9 +7346,24 @@ const CONTINENT_ROUTES = {
   },
 };
 
+// ── NPC seller metadata — resolves NPC_XXX IDs to name/flag/continent ──
+// Built once from NPC_DATA keys (ISO numbers) cross-referenced against PLAYABLE_COUNTRIES.isoNum.
+const NPC_SELLER_META = (() => {
+  const isoContMap = {};
+  Object.values(PLAYABLE_COUNTRIES).forEach(pc => { if(pc.isoNum) isoContMap[pc.isoNum] = pc.continent; });
+  const out = {};
+  Object.entries(NPC_DATA).forEach(([iso, npc]) => {
+    out['NPC_'+iso] = { name: npc.name, flag: npc.flag, continent: isoContMap[iso] || null };
+  });
+  // 'World Market' synthetic seller — treat as neutral/local (guaranteed liquidity supply)
+  out['World Market'] = { name:'World Market', flag:'🌐', continent: null };
+  return out;
+})();
+
 function getTradeRoute(buyerId, sellerId){
   const buyerCont  = PLAYABLE_COUNTRIES[buyerId]?.continent  || PLAYER_META[buyerId]?.continent;
-  const sellerCont = PLAYABLE_COUNTRIES[sellerId]?.continent || PLAYER_META[sellerId]?.continent;
+  const sellerCont = PLAYABLE_COUNTRIES[sellerId]?.continent || PLAYER_META[sellerId]?.continent
+                     || NPC_SELLER_META[sellerId]?.continent; // ← NPC/World Market continent lookup
   if(!buyerCont || !sellerCont || buyerCont === sellerCont) return {turns:0,loss:0,piracy:0,route:'Local'};
   return CONTINENT_ROUTES[buyerCont]?.[sellerCont] || {turns:2,loss:5,piracy:2,route:'🚢 Overseas'};
 }
@@ -8973,7 +8988,7 @@ function renderMarketTab(){
     const blocked = dipMod === null;
     const effTotal = blocked ? listed : Math.round(listed * dipMod);
     const canAfford = !isOwn && !blocked && myC && myC.economy.pool >= effTotal;
-    const sellerM = PLAYER_META[o.seller];
+    const sellerM = PLAYER_META[o.seller] || NPC_SELLER_META[o.seller];
     const turnsLeft = Math.max(0, 3 - ((GS.turn||0) - (o.postedTurn||0)));
     const dipBadge = !isOwn ? diplomaticModifierLabel(dipMod) : null;
     const routeInfo = (!isOwn && myId && o.seller) ? getTradeRoute(myId, o.seller) : null;
@@ -8989,7 +9004,7 @@ function renderMarketTab(){
       <div class="market-info">
         <div class="res-name">${r.label}${dipBadge?` <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${dipBadge.color}22;color:${dipBadge.color};border:1px solid ${dipBadge.color}44" title="${dipBadge.title}">${dipBadge.text}</span>`:''}</div>
         <div class="res-detail">Qty: <strong>${o.qty}</strong> × ${priceDisplay}</div>
-        <div class="res-seller">${sellerM?sellerM.flag+' ':''}<strong>${o.seller}</strong>${o.sellerIsAI?' 🤖 AI':''} · ⏱ ${turnsLeft}t left</div>
+        <div class="res-seller">${sellerM?.flag ? sellerM.flag+' ' : ''}<strong>${sellerM?.name || o.seller}</strong>${o.sellerIsAI?' 🤖 AI':''} · ⏱ ${turnsLeft}t left</div>
         ${routeInfo && routeInfo.turns > 0 ? `<div style="font-size:10px;margin-top:3px;display:flex;gap:5px;flex-wrap:wrap">
   <span style="background:#1a2a1a;border:1px solid #2dc65344;border-radius:8px;padding:1px 7px;color:#4caf50">⏱ ${routeInfo.turns} turn${routeInfo.turns>1?'s':''} delivery</span>
   <span style="background:#2a1a0a;border:1px solid #f4a26144;border-radius:8px;padding:1px 7px;color:var(--orange)">📉 ~${routeInfo.loss}% loss</span>
