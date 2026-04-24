@@ -7357,6 +7357,9 @@ const NPC_SELLER_META = (() => {
   });
   // 'World Market' synthetic seller — treat as neutral/local (guaranteed liquidity supply)
   out['World Market'] = { name:'World Market', flag:'🌐', continent: null };
+  // Synthetic continent sellers — represent South America & Oceania which have no NPC_DATA entries
+  out['NPC_SAM'] = { name:'South American Commodity Exchange', flag:'🌎', continent:'South America' };
+  out['NPC_OCE'] = { name:'Pacific Trade Network', flag:'🌏', continent:'Oceania' };
   return out;
 })();
 
@@ -9809,11 +9812,15 @@ function processMarketTurn(){
   });
 
   // ── Helper: post a sell offer from any seller (player AI or NPC) ──
-  const postOffer = (sellerId, res, r, balanceVal) => {
+  // force=true: always post regardless of random roll (used for NPC_DATA & synthetic continent sellers)
+  const postOffer = (sellerId, res, r, balanceVal, force=false) => {
     const alreadyPosted = GS.market.offers.some(o=>o.seller===sellerId&&o.resource===res);
     if(alreadyPosted) return;
-    if(Math.random() > 0.40) return; // 40% chance per turn
-    const qty = Math.min(3 + Math.floor(Math.random()*4), 8);
+    if(!force && Math.random() > 0.40) return; // 40% chance for AI-slot countries only
+    // Global NPC sellers post larger batches so their offers survive long enough for players to see
+    const qty = force
+      ? Math.min(5 + Math.floor(Math.random()*8), 15)
+      : Math.min(3 + Math.floor(Math.random()*4), 8);
     const price = Math.max(1, Math.round(r.basePrice * (0.80 + Math.random()*0.45)));
     GS.market.offers.push({
       id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
@@ -9868,8 +9875,7 @@ function processMarketTurn(){
     npc.sells.forEach(label => {
       const res = NPC_RES_MAP[label];
       if(!res || !MARKET_RESOURCES[res]) return;
-      const r = MARKET_RESOURCES[res];
-      postOffer(npcId, res, r, 2);
+      postOffer(npcId, res, MARKET_RESOURCES[res], 2, true); // always post — global NPCs are reliable exporters
     });
     // Buy from human sellers for things they need (their "buys" list)
     if(Math.random() < 0.30){
@@ -9893,6 +9899,17 @@ function processMarketTurn(){
       }
     }
   });
+
+  // ── Synthetic continent sellers: South America & Oceania ──
+  // These continents have no NPC_DATA entries, so we guarantee them market representation
+  // via two synthetic aggregate traders so all 7 continents appear in the global market.
+  [
+    { id:'NPC_SAM', sells:['food','minerals','energy'] },   // 🌎 South American Commodity Exchange
+    { id:'NPC_OCE', sells:['food','construction','minerals'] }, // 🌏 Pacific Trade Network
+  ].forEach(s => s.sells.forEach(res => {
+    const r = MARKET_RESOURCES[res];
+    if(r) postOffer(s.id, res, r, 2, true);
+  }));
 
   // ── Always guarantee energy & critical minerals are available ──
   // These are essential for military/project actions; if no one is selling, the world market
