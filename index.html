@@ -2340,14 +2340,20 @@ function initFirebase(){
         // ── Stuck-processing recovery ──────────────────────────────────────────
         // If a turn was being processed but the tab crashed / write failed,
         // the game can be left in phase='processing' forever.
-        // After 2 minutes with no progress, auto-reset to collecting so players
-        // can resubmit and the game continues.
-        if(GS.phase === 'processing' && GS.processingStartedAt &&
-           (Date.now() - GS.processingStartedAt) > 120000){
-          console.warn('[recovery] Stuck in processing for >2 min — resetting to collecting');
-          GS.phase = 'collecting';
-          GS.processingStartedAt = null;
-          pushState();
+        // Recover immediately if processingStartedAt is missing (old save / crash before timestamp),
+        // or after 2 minutes if it is set.
+        if(GS.phase === 'processing'){
+          const stuckMs = GS.processingStartedAt ? (Date.now() - GS.processingStartedAt) : Infinity;
+          if(stuckMs > 120000){
+            console.warn('[recovery] Stuck in processing (stuckMs='+stuckMs+') — resetting to collecting');
+            GS.phase = 'collecting';
+            GS.processingStartedAt = null;
+            // Clear any submitted flags so players can re-act
+            Object.values(GS.countries||{}).forEach(c => {
+              if(c.submitted){ c.submitted = false; }
+            });
+            pushState();
+          }
         }
         // Auto-clear Away AI when the real player reconnects
         const myId = session.country;
@@ -2898,7 +2904,15 @@ function renderActionPanel(id){
   if(!isMyCountry && !isGM){ el.innerHTML=`<p class="locked-msg">🔒 ${PLAYER_META[id]?.player||id}'s actions are private.</p>`; return; }
   if(isGM && !isMyCountry){ el.innerHTML = c.submitted ? `<div class="submitted-msg">✓ ${id} has submitted.</div>` : `<div class="locked-msg">… ${id} hasn't submitted yet.</div>`; return; }
   if(GS.phase === 'setup'){ el.innerHTML=`<p class="locked-msg">Waiting for the GM to start the turn.</p>`; return; }
-  if(GS.phase === 'processing'){ el.innerHTML=`<div class="submitted-msg">⚙️ AI is processing the turn…</div>`; return; }
+  if(GS.phase === 'processing'){
+    const stuckSec = GS.processingStartedAt ? Math.floor((Date.now()-GS.processingStartedAt)/1000) : 999;
+    const stuckWarn = stuckSec > 30
+      ? `<div style="margin-top:8px;font-size:10px;color:var(--orange)">Processing for ${stuckSec}s…</div>
+         <button class="btn" style="margin-top:6px;border-color:var(--red);color:var(--red);font-size:10px;padding:4px 10px" onclick="forceUnstickGame()">🔧 Game seems stuck — force reset</button>`
+      : '';
+    el.innerHTML=`<div class="submitted-msg">⚙️ AI is processing the turn…${stuckWarn}</div>`;
+    return;
+  }
   if(GS.slots[id]?.offlineAI){ el.innerHTML=`<div class="submitted-msg" style="color:var(--orange)">💤 Away Mode Active<br><span style="font-size:10px;color:var(--text-dim)">The GM has put your country on temporary AI autopilot. It will take safe maintenance actions until you return. Ask the GM to hand back control.</span></div>`; return; }
   if(GS.slots[id]?.isAI){ el.innerHTML=`<div class="submitted-msg" style="color:var(--accent)">🤖 AI Country<br><span style="font-size:10px;color:var(--text-dim)">This is a GM-added AI nation. It decides its own actions each turn automatically.</span></div>`; return; }
   if(c.submitted){
@@ -3190,6 +3204,23 @@ function skipTurn(id){
   renderDashboard();
   renderCountryCard(id);
   toast('Turn skipped.','info');
+}
+
+// ── Emergency recovery: any player can force-unstick a frozen processing phase ──
+function forceUnstickGame(){
+  if(!GS || GS.phase !== 'processing') return;
+  const stuckSec = GS.processingStartedAt ? Math.floor((Date.now()-GS.processingStartedAt)/1000) : 999;
+  if(stuckSec < 15 && session.country !== 'gm'){
+    toast('Turn is still processing — wait at least 15 seconds before forcing a reset','error');
+    return;
+  }
+  GS.phase = 'collecting';
+  GS.processingStartedAt = null;
+  // Clear submitted flags so everyone can act again
+  Object.values(GS.countries||{}).forEach(c => { c.submitted = false; });
+  pushState();
+  updateAllUI();
+  toast('🔧 Turn reset — please re-submit your action for this turn','info');
 }
 
 function unsubmitTurn(id){
