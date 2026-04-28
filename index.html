@@ -3886,6 +3886,63 @@ function renderGmConsole(){
         </tbody>
       </table>
     </div>
+    <h3 style="font-size:12px;font-weight:700;margin-top:16px;margin-bottom:6px">⚔️ Active Wars & Conflicts</h3>
+    <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <button class="btn" style="font-size:10px;padding:3px 10px;border-color:var(--red);color:var(--red)"
+        onclick="openGmWarDeclaration()">+ Declare War</button>
+      <span style="font-size:11px;color:var(--text-dim)">${(GS.wars||[]).filter(w=>w.status==='active').length} active conflict(s)</span>
+    </div>
+    ${(()=>{
+      const wars = (GS.wars||[]);
+      if(!wars.length) return `<div style="color:var(--text-dim);font-size:12px;padding:8px 0">No active or past conflicts.</div>`;
+      return `<div style="display:flex;flex-direction:column;gap:8px">
+        ${wars.map(war=>{
+          const aMeta=PLAYER_META[war.attacker]||PLAYABLE_COUNTRIES[war.attacker]||{flag:'🏳',color:'#888'};
+          const dMeta=PLAYER_META[war.defender]||PLAYABLE_COUNTRIES[war.defender]||{flag:'🏳',color:'#888'};
+          const ac=GS.countries[war.attacker], dc=GS.countries[war.defender];
+          const rounds=war.rounds||[];
+          const atkWins=rounds.filter(r=>r.winner===war.attacker).length;
+          const defWins=rounds.filter(r=>r.winner===war.defender).length;
+          const latest=rounds[rounds.length-1];
+          const statusColor={active:'var(--orange)',ended:'var(--green)',truce:'var(--text-dim)'}[war.status]??'var(--text)';
+          const statusLabel={active:'⚔️ ACTIVE',ended:'🏁 ENDED',truce:'🕊️ TRUCE'}[war.status]??war.status.toUpperCase();
+          const warKey=war.attacker+'-'+war.defender;
+          return `<div style="background:var(--surface);border:1px solid ${war.status==='active'?'var(--red)':'var(--border)'};border-radius:var(--radius);padding:12px">
+            <!-- War header -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:16px">${aMeta.flag||'🏳'}</span>
+              <strong>${war.attacker}</strong>
+              <span style="color:var(--text-dim)">vs</span>
+              <span style="font-size:16px">${dMeta.flag||'🏳'}</span>
+              <strong>${war.defender}</strong>
+              <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${statusColor}20;border:1px solid ${statusColor};color:${statusColor};margin-left:4px">${statusLabel}</span>
+              <span style="font-size:10px;color:var(--text-dim);margin-left:auto">${war.type||'full'} war · Round ${rounds.length} · Started T${war.startTurn}</span>
+            </div>
+            <!-- Score bar -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <span style="font-size:10px;color:${aMeta.color||'#4a90d9'};width:60px">${atkWins} wins</span>
+              <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;position:relative">
+                ${rounds.length?`<div style="position:absolute;left:0;top:0;height:100%;width:${Math.round(atkWins/rounds.length*100)}%;background:${aMeta.color||'#4a90d9'};border-radius:3px"></div>`:''}
+              </div>
+              <span style="font-size:10px;color:${dMeta.color||'#e05c6b'};width:60px;text-align:right">${defWins} wins</span>
+            </div>
+            <!-- Quick stats -->
+            <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;margin-bottom:8px">
+              <span><span class="text-dim">${aMeta.flag} Bat:</span> <strong>${ac?.military?.battalions??'?'}</strong></span>
+              <span><span class="text-dim">${dMeta.flag} Bat:</span> <strong>${dc?.military?.battalions??'?'}</strong></span>
+              ${latest?`<span><span class="text-dim">Last round:</span> <strong style="color:${latest.winner===war.attacker?(aMeta.color||'#4a90d9'):(dMeta.color||'#e05c6b')}">${PLAYER_META[latest.winner]?.flag||'🏳'} ${latest.winner} won</strong> (${latest.atkStr} vs ${latest.defStr})</span>`:''}
+              ${latest?`<span class="text-red">Losses this round: ${war.attacker} −${latest.casualties?.attacker?.battalions||0} bat · ${war.defender} −${latest.casualties?.defender?.battalions||0} bat</span>`:''}
+            </div>
+            <!-- Actions -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn" style="font-size:10px;padding:3px 10px" onclick="showWarReportModal((GS.wars||[]).find(w=>w.attacker==='${war.attacker}'&&w.defender==='${war.defender}'))">📋 Full Battle Report</button>
+              ${war.status==='active'?`<button class="btn" style="font-size:10px;padding:3px 10px;border-color:var(--red);color:var(--red)" onclick="endWarByGm('${war.attacker}','${war.defender}','peace');renderGmConsole()">🕊️ Force Peace</button>`:''}
+              ${war.status==='active'&&war.result?`<button class="btn" style="font-size:10px;padding:3px 10px;border-color:var(--green);color:var(--green)" onclick="openPeaceConference('${war.attacker}','${war.defender}')">🏛 Peace Conf.</button>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    })()}
     <h3 style="font-size:12px;font-weight:700;margin-top:16px;margin-bottom:6px">World Market</h3>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
       ${Object.entries(GS.worldMarket||{}).map(([r,d])=>`<div class="stat-box" style="min-width:110px"><div class="label">${r}</div><div class="value">${(d||{}).price||'?'} eco</div><div class="sub">${(d||{}).trend>0?'↑ Rising':(d||{}).trend<0?'↓ Falling':'→ Stable'}</div></div>`).join('')}
@@ -7468,50 +7525,475 @@ function declareWar(attacker, defender){
 function resolveWars(){
   if(!GS.wars||!GS.countries) return;
   const readMul = {Low:0.6,Medium:1.0,High:1.3};
+
   GS.wars.filter(w=>w.status==='active').forEach(war=>{
     const ac=GS.countries[war.attacker], dc=GS.countries[war.defender];
     if(!ac||!dc){ war.status='ended'; return; }
-    const atCont = PLAYABLE_COUNTRIES[war.attacker]?.continent||'';
-    const dfCont = PLAYABLE_COUNTRIES[war.defender]?.continent||'';
-    const lf = logisticsFactor(atCont, dfCont);
-    const tf = TERRAIN_BONUS[war.defender]  || 1.0;
-    const pf = PLAINS_BONUS[war.attacker]   || 1.0;
-    const milStr = c => (c.military.battalions||0) + (c.military.mechDivisions||0)*15 + (c.military.fleets||0)*20 + (c.military.airWings||0)*30 + (c.military.carrierGroups||0)*50 + (c.military.bomberWings||0)*40;
-    const atkStr = milStr(ac) * (readMul[ac.military.readiness||'Low']||0.6) * lf * pf * (0.85+Math.random()*0.3);
-    const defStr = milStr(dc) * (readMul[dc.military.readiness||'Low']||0.6) * tf        * (0.85+Math.random()*0.3);
-    const atkWins = atkStr > defStr;
-    const aLoss = Math.max(1, Math.floor((ac.military.battalions||1) * (0.05+Math.random()*0.1+(atkWins?0.02:0.07))));
-    const dLoss = Math.max(1, Math.floor((dc.military.battalions||1) * (0.05+Math.random()*0.1+(atkWins?0.07:0.02))));
-    ac.military.battalions = Math.max(0, (ac.military.battalions||0)-aLoss);
-    dc.military.battalions = Math.max(0, (dc.military.battalions||0)-dLoss);
-    ac.stability = Math.max(0, (ac.stability||50) - (atkWins?3:9));
-    dc.stability = Math.max(0, (dc.stability||50) - (atkWins?9:3));
-    if(atkWins) ac.prestige=(ac.prestige||0)+3; else dc.prestige=(dc.prestige||0)+3;
+
+    const atCont = PLAYABLE_COUNTRIES[war.attacker]?.continent||PLAYER_META[war.attacker]?.continent||'';
+    const dfCont = PLAYABLE_COUNTRIES[war.defender]?.continent||PLAYER_META[war.defender]?.continent||'';
+    const lf     = logisticsFactor(atCont, dfCont);
+    const tf     = TERRAIN_BONUS[war.defender]  || 1.0;
+    const pf     = PLAINS_BONUS[war.attacker]   || 1.0;
+    const techDiff = (ac.tech?.tier||0) - (dc.tech?.tier||0);
+
+    // ── Build step-by-step factor breakdowns ──
+    const atkFactors = buildWarFactors(ac, dc, war.attacker, war.defender, 'attacker', lf, pf, tf, techDiff);
+    const defFactors = buildWarFactors(dc, ac, war.defender, war.attacker, 'defender', lf, pf, tf, -techDiff);
+
+    const atkStr = atkFactors.total;
+    const defStr = defFactors.total;
+    const roll   = 0.85 + Math.random() * 0.3;
+    const atkWins = (atkStr * roll) > defStr;
+
+    // ── Casualty calculation (visible rates) ──
+    const warTypeMult = {full:1, limited:0.4, proxy:0.15}[war.type||'full'] ?? 1;
+    const aLossRate = atkWins ? (0.03 + Math.random()*0.04) : (0.06 + Math.random()*0.08);
+    const dLossRate = atkWins ? (0.06 + Math.random()*0.08) : (0.03 + Math.random()*0.04);
+    const aLoss   = Math.max(1, Math.floor((ac.military.battalions||1) * aLossRate * warTypeMult));
+    const dLoss   = Math.max(1, Math.floor((dc.military.battalions||1) * dLossRate * warTypeMult));
+    const aMechL  = Math.floor((ac.military.mechDivisions||0) * aLossRate * 0.5 * warTypeMult);
+    const dMechL  = Math.floor((dc.military.mechDivisions||0) * dLossRate * 0.5 * warTypeMult);
+    const aAirL   = Math.floor((ac.military.airWings||0)      * aLossRate * 0.3 * warTypeMult);
+    const dAirL   = Math.floor((dc.military.airWings||0)      * dLossRate * 0.3 * warTypeMult);
+
+    // ── Apply losses ──
+    ac.military.battalions   = Math.max(0,(ac.military.battalions||0)-aLoss);
+    dc.military.battalions   = Math.max(0,(dc.military.battalions||0)-dLoss);
+    ac.military.mechDivisions= Math.max(0,(ac.military.mechDivisions||0)-aMechL);
+    dc.military.mechDivisions= Math.max(0,(dc.military.mechDivisions||0)-dMechL);
+    ac.military.airWings     = Math.max(0,(ac.military.airWings||0)-aAirL);
+    dc.military.airWings     = Math.max(0,(dc.military.airWings||0)-dAirL);
+
+    // ── Economy drain ──
+    const ecoCost = {full:3, limited:1, proxy:0}[war.type||'full'] ?? 2;
+    const aEcoCost = ecoCost + (atkWins?0:2);
+    const dEcoCost = ecoCost + (atkWins?2:0);
+    ac.economy.pool = Math.max(0,(ac.economy.pool||0)-aEcoCost);
+    dc.economy.pool = Math.max(0,(dc.economy.pool||0)-dEcoCost);
+
+    // ── Stability ──
+    const aStabLoss = atkWins ? 3 : 9;
+    const dStabLoss = atkWins ? 9 : 3;
+    ac.stability = Math.max(0,(ac.stability||50)-aStabLoss);
+    dc.stability = Math.max(0,(dc.stability||50)-dStabLoss);
+
+    // ── Prestige (intermediate) ──
+    if(atkWins) ac.prestige=(ac.prestige||0)+1; else dc.prestige=(dc.prestige||0)+1;
+
+    // ── Store a rich round record ──
+    if(!war.rounds) war.rounds=[];
+    war.rounds.push({
+      turn:    GS.turn,
+      date:    getTurnDate(GS.turn),
+      winner:  atkWins ? war.attacker : war.defender,
+      atkStr:  Math.round(atkStr), defStr: Math.round(defStr),
+      roll:    Math.round(roll*100),
+      atkFactors, defFactors,
+      casualties:{
+        attacker:{ battalions:aLoss, mechDivisions:aMechL, airWings:aAirL, lossRate:Math.round(aLossRate*100) },
+        defender:{ battalions:dLoss, mechDivisions:dMechL, airWings:dAirL, lossRate:Math.round(dLossRate*100) },
+      },
+      econCost:{ attacker:aEcoCost, defender:dEcoCost },
+      stabCost:{ attacker:aStabLoss, defender:dStabLoss },
+    });
+
     const roundDesc = atkWins
-      ? `${war.attacker} gains ground (str ${Math.round(atkStr)} vs ${Math.round(defStr)}). Losses — ${war.attacker}: ${aLoss} bat, ${war.defender}: ${dLoss} bat.`
-      : `${war.defender} holds the line (str ${Math.round(defStr)} vs ${Math.round(atkStr)}). Losses — ${war.attacker}: ${aLoss} bat, ${war.defender}: ${dLoss} bat.`;
-    war.rounds.push({turn:GS.turn,winner:atkWins?war.attacker:war.defender,desc:roundDesc});
+      ? `${war.attacker} gains ground (${Math.round(atkStr)} vs ${Math.round(defStr)}). ${war.attacker} loses ${aLoss} bat · ${war.defender} loses ${dLoss} bat.`
+      : `${war.defender} holds the line (${Math.round(defStr)} vs ${Math.round(atkStr)}). ${war.attacker} loses ${aLoss} bat · ${war.defender} loses ${dLoss} bat.`;
     if(!GS.newsBoard) GS.newsBoard=[];
-    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',title:`War Round ${war.rounds.length}: ${war.attacker} vs ${war.defender}`,body:roundDesc});
-    // End conditions
+    GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+      title:`⚔️ Round ${war.rounds.length}: ${war.attacker} vs ${war.defender}`,body:roundDesc});
+
+    // ── End conditions ──
     if(ac.stability<15||ac.military.battalions<5||dc.stability<15||dc.military.battalions<5||war.rounds.length>=6){
       const winner = atkWins?war.attacker:war.defender;
       const loser  = winner===war.attacker?war.defender:war.attacker;
-      war.status='ended'; war.result=winner;
+      war.status='ended'; war.result=winner; war.endTurn=GS.turn;
       ac.atWar=(ac.atWar||[]).filter(x=>x!==war.defender);
       dc.atWar=(dc.atWar||[]).filter(x=>x!==war.attacker);
       ac.prestige=(ac.prestige||0)+(winner===war.attacker?8:-5);
       dc.prestige=(dc.prestige||0)+(winner===war.defender?8:-5);
-      // Approval shift from war outcome
       const wc=GS.countries[winner], lc=GS.countries[loser];
       if(wc) wc.approval=Math.min(100,(wc.approval||60)+8);
       if(lc) lc.approval=Math.max(0,(lc.approval||60)-12);
-      bumpWorldTension(-5, `War ended: ${winner} vs ${loser}`);
-      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',title:`⚔️ War ends: ${winner} victorious`,body:`The war between ${war.attacker} and ${war.defender} has concluded. ${winner} emerges victorious after ${war.rounds.length} rounds of combat.`});
-      // Open peace conference for player-vs-player wars
-      if(GS.countries[winner] && GS.countries[loser]) openPeaceConference(winner, loser);
+      bumpWorldTension(-5,`War ended: ${winner} vs ${loser}`);
+      GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+        title:`⚔️ War ends: ${winner} victorious`,
+        body:`The war between ${war.attacker} and ${war.defender} has concluded after ${war.rounds.length} rounds. ${winner} emerges victorious.`});
+      if(GS.countries[winner]&&GS.countries[loser]) openPeaceConference(winner,loser);
     }
   });
+}
+
+// ── Factor builder — generates the step-by-step breakdown ──
+function buildWarFactors(c, enemy, cId, eId, role, lf, pf, tf, techDiff){
+  const steps = [];
+  let total = 0;
+
+  // Base army
+  const bat = c.military.battalions||0;
+  steps.push({label:'Battalions', value:bat, detail:`${bat} battalions × 1`});
+  total += bat;
+
+  // Mech divisions
+  const mech = (c.military.mechDivisions||0)*15;
+  if(mech>0){ steps.push({label:'Mech Divisions',value:mech,detail:`${c.military.mechDivisions} × 15`}); total+=mech; }
+
+  // Air wings
+  const air = (c.military.airWings||0)*30;
+  if(air>0){ steps.push({label:'Air Wings',value:air,detail:`${c.military.airWings} × 30`}); total+=air; }
+
+  // Bombers
+  const bom = (c.military.bomberWings||0)*40;
+  if(bom>0){ steps.push({label:'Bomber Wings',value:bom,detail:`${c.military.bomberWings} × 40`}); total+=bom; }
+
+  // Fleets
+  const fleet = (c.military.fleets||0)*20+(c.military.carrierGroups||0)*50;
+  if(fleet>0){ steps.push({label:'Naval Power',value:fleet,detail:`${c.military.fleets} fleets + ${c.military.carrierGroups} carriers`}); total+=fleet; }
+
+  // Readiness
+  const readMul={Low:0.6,Medium:1.0,High:1.3}[c.military.readiness||'Low'];
+  const readPre = total; total = Math.round(total * readMul);
+  const readDelta = total - readPre;
+  steps.push({label:`Readiness (${c.military.readiness||'Low'})`,value:readDelta,detail:`×${readMul} multiplier — Low=0.6×, Med=1.0×, High=1.3×`});
+
+  // Tech advantage
+  if(techDiff!==0){
+    const techMod = Math.round(total * techDiff * 0.1);
+    steps.push({label:techDiff>0?'Tech Advantage':'Tech Disadvantage',value:techMod,detail:`Tier gap: ${techDiff>0?'+':''}${techDiff} × 10% of base`});
+    total+=techMod;
+  }
+
+  // Logistics (attacker only)
+  if(role==='attacker' && lf<1){
+    const logDelta = Math.round(total*(lf-1));
+    steps.push({label:'Logistics / Distance',value:logDelta,detail:`Cross-continent supply penalty (×${lf.toFixed(2)})`});
+    total+=logDelta;
+  }
+
+  // Plains bonus (attacker in open terrain)
+  if(role==='attacker' && pf>1){
+    const pfDelta = Math.round(total*(pf-1));
+    steps.push({label:'Terrain Advantage (Plains)',value:pfDelta,detail:`Attacker moves freely in flat terrain (×${pf.toFixed(2)})`});
+    total+=pfDelta;
+  }
+
+  // Defender terrain
+  if(role==='defender' && tf>1){
+    const tfDelta = Math.round(total*(tf-1));
+    steps.push({label:'Defender Terrain Bonus',value:tfDelta,detail:`Defending home territory (×${tf.toFixed(2)})`});
+    total+=tfDelta;
+  }
+
+  // Stability morale
+  if((c.stability||60)<40){
+    const moralePenalty = -Math.round(total*0.15);
+    steps.push({label:'Low Morale (Stability < 40)',value:moralePenalty,detail:`Stability ${c.stability} — troops demoralised (−15%)`});
+    total+=moralePenalty;
+  } else if((c.stability||60)>=80){
+    const moraleBonus = Math.round(total*0.05);
+    steps.push({label:'High Morale (Stability ≥ 80)',value:moraleBonus,detail:`Stability ${c.stability} — high fighting spirit (+5%)`});
+    total+=moraleBonus;
+  }
+
+  // Energy deficit
+  if(c.energy&&c.energy.balance<=-4){
+    steps.push({label:'Energy Crisis',value:-10,detail:`Energy balance ${c.energy.balance} — fuel shortages cripple military`});
+    total-=10;
+  }
+
+  return { total:Math.max(1,total), steps };
+}
+
+// ── War Battle Report modal (GM only) ──
+function endWarByGm(attacker, defender, outcome){
+  const war = (GS.wars||[]).find(w=>w.attacker===attacker&&w.defender===defender&&w.status==='active');
+  if(!war){ toast('War not found','error'); return; }
+  war.status = outcome==='peace' ? 'ended' : outcome;
+  war.result = null;
+  war.endTurn = GS.turn;
+  const ac=GS.countries[attacker], dc=GS.countries[defender];
+  if(ac) ac.atWar=(ac.atWar||[]).filter(x=>x!==defender);
+  if(dc) dc.atWar=(dc.atWar||[]).filter(x=>x!==attacker);
+  bumpWorldTension(-5,`GM ended war: ${attacker} vs ${defender}`);
+  if(!GS.newsBoard) GS.newsBoard=[];
+  GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+    title:`🕊️ Ceasefire: ${attacker} vs ${defender}`,
+    body:`The GM has declared a ceasefire between ${attacker} and ${defender}. Hostilities end immediately.`});
+  pushState();
+  toast(`Ceasefire declared: ${attacker} vs ${defender}`,'success');
+}
+
+function openGmWarDeclaration(){
+  const players = Object.keys(GS.countries);
+  const opts = players.map(id=>`<option value="${id}">${PLAYER_META[id]?.flag||''} ${id}</option>`).join('');
+  let modal = document.getElementById('gmWarDeclModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id='gmWarDeclModal';
+    modal.className='modal-overlay';
+    modal.innerHTML=`<div class="modal" style="width:480px">
+      <h2>⚔️ Declare War</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">ATTACKER</label>
+          <select id="gwdAttacker" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px" onchange="renderGwdChecks()"></select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">DEFENDER</label>
+          <select id="gwdDefender" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px" onchange="renderGwdChecks()"></select>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">WAR TYPE</label>
+        <select id="gwdType" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;width:100%">
+          <option value="full">⚔️ Full War — max casualties, full mechanics</option>
+          <option value="limited">🎯 Limited War — reduced casualties</option>
+          <option value="proxy">🕵️ Proxy War — minimal direct losses (2 eco/turn)</option>
+        </select>
+      </div>
+      <div id="gwdChecks" style="margin-bottom:12px;display:flex;flex-direction:column;gap:5px"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('gmWarDeclModal').classList.add('hidden')">Cancel</button>
+        <button class="btn danger" id="gwdConfirmBtn" onclick="gwdConfirm()">⚔️ Declare War</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('gwdAttacker').innerHTML = opts;
+  document.getElementById('gwdDefender').innerHTML = opts;
+  document.getElementById('gwdDefender').selectedIndex = 1;
+  modal.classList.remove('hidden');
+  renderGwdChecks();
+}
+
+function renderGwdChecks(){
+  const atkId = document.getElementById('gwdAttacker')?.value;
+  const defId = document.getElementById('gwdDefender')?.value;
+  const el    = document.getElementById('gwdChecks');
+  const btn   = document.getElementById('gwdConfirmBtn');
+  if(!atkId||!defId||!el) return;
+  const a = GS.countries[atkId];
+  if(!a){ el.innerHTML=''; return; }
+  const checks = [
+    { label:'Stability > 60', pass: a.stability>60, detail:`Current: ${a.stability}` },
+    { label:'Not in food deficit', pass: a.resourceBalance?.food>=0, detail:`Food balance: ${a.resourceBalance?.food??'?'}/turn` },
+    { label:'Not already at war', pass: !(GS.wars||[]).some(w=>w.status==='active'&&((w.attacker===atkId&&w.defender===defId)||(w.attacker===defId&&w.defender===atkId))), detail:'Conflict status check' },
+    { label:'Not same country', pass: atkId!==defId, detail:'' },
+  ];
+  const fails = checks.filter(c=>!c.pass);
+  el.innerHTML = checks.map(c=>`
+    <div style="display:flex;align-items:flex-start;gap:6px;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="color:${c.pass?'var(--green)':'var(--red)'};font-size:13px;line-height:1">${c.pass?'✓':'✗'}</span>
+      <div><strong>${c.label}</strong>${c.detail?`<div style="color:var(--text-dim)">${c.detail}</div>`:''}</div>
+    </div>`).join('');
+  // GM can override checks — but warn
+  if(btn) btn.textContent = fails.length ? `⚠️ Declare War (override ${fails.length} check${fails.length>1?'s':''})` : '⚔️ Declare War';
+}
+
+function gwdConfirm(){
+  const atkId = document.getElementById('gwdAttacker')?.value;
+  const defId = document.getElementById('gwdDefender')?.value;
+  const type  = document.getElementById('gwdType')?.value||'full';
+  if(!atkId||!defId||atkId===defId){ toast('Invalid attacker/defender','error'); return; }
+  declareWarTyped(atkId, defId, type);
+  document.getElementById('gmWarDeclModal').classList.add('hidden');
+  renderGmConsole();
+}
+
+function declareWarTyped(attacker, defender, type='full'){
+  if(!GS.wars) GS.wars=[];
+  if(GS.wars.some(w=>w.status==='active'&&((w.attacker===attacker&&w.defender===defender)||(w.attacker===defender&&w.defender===attacker)))){
+    toast('Already at war','error'); return;
+  }
+  GS.wars.push({attacker, defender, type, startTurn:GS.turn, status:'active', rounds:[], result:null});
+  const ac=GS.countries[attacker], dc=GS.countries[defender];
+  if(ac){ if(!ac.atWar)ac.atWar=[]; if(!ac.atWar.includes(defender))ac.atWar.push(defender); ac.stability=Math.max(0,ac.stability-5); ac.approval=Math.max(0,(ac.approval||60)-5); }
+  if(dc){ if(!dc.atWar)dc.atWar=[]; if(!dc.atWar.includes(attacker))dc.atWar.push(attacker); dc.stability=Math.max(0,dc.stability-10); dc.approval=Math.max(0,(dc.approval||60)-8); }
+  bumpWorldTension(15,`${attacker} declared war on ${defender}`);
+  if(!GS.newsBoard) GS.newsBoard=[];
+  GS.newsBoard.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+    title:`⚔️ ${attacker} declares ${type} war on ${defender}!`,
+    body:`${attacker} has formally declared a ${type} war on ${defender}. Both nations begin mobilising forces.`});
+  checkDefencePacts(attacker, defender);
+  pushState();
+  toast(`⚔️ ${type} war declared: ${attacker} vs ${defender}!`,'error');
+  renderCountryCard(session.country);
+  renderBottomBar();
+}
+  const war=(GS.wars||[]).find(w=>w.attacker===warId.split('|')[0]&&w.defender===warId.split('|')[1])||
+            (GS.wars||[]).find(w=>w._id===warId)||(GS.wars||[]).find(w=>w.attacker+'-'+w.defender===warId);
+  // Fallback: find by index
+  if(!war){ toast('War not found','error'); return; }
+  showWarReportModal(war);
+}
+
+function showWarReportModal(war){
+  let modal = document.getElementById('warReportModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id='warReportModal';
+    modal.className='modal-overlay';
+    modal.innerHTML=`<div class="modal" style="width:680px;max-height:88vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2>📋 Battle Report</h2>
+        <button class="btn" onclick="document.getElementById('warReportModal').classList.add('hidden')">✕</button>
+      </div>
+      <div id="warReportBody"></div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.classList.remove('hidden');
+  document.getElementById('warReportBody').innerHTML = buildWarReportHTML(war);
+}
+
+function buildWarReportHTML(war){
+  const aMeta = PLAYER_META[war.attacker]||PLAYABLE_COUNTRIES[war.attacker]||{flag:'🏳',color:'#888'};
+  const dMeta = PLAYER_META[war.defender]||PLAYABLE_COUNTRIES[war.defender]||{flag:'🏳',color:'#888'};
+  const ac    = GS.countries[war.attacker];
+  const dc    = GS.countries[war.defender];
+  const rounds= war.rounds||[];
+
+  // War score: rounds won by each side
+  const atkRoundsWon = rounds.filter(r=>r.winner===war.attacker).length;
+  const defRoundsWon = rounds.filter(r=>r.winner===war.defender).length;
+  const totalRounds  = rounds.length;
+
+  const statusLabel={active:'⚔️ Active',ended:'🏁 Ended',truce:'🕊️ Truce'}[war.status]??war.status;
+  const statusColor ={active:'var(--orange)',ended:'var(--green)',truce:'var(--text-dim)'}[war.status]??'var(--text)';
+
+  // Cumulative losses
+  const aTotalBat  = rounds.reduce((s,r)=>s+(r.casualties?.attacker?.battalions||0),0);
+  const dTotalBat  = rounds.reduce((s,r)=>s+(r.casualties?.defender?.battalions||0),0);
+  const aTotalEco  = rounds.reduce((s,r)=>s+(r.econCost?.attacker||0),0);
+  const dTotalEco  = rounds.reduce((s,r)=>s+(r.econCost?.defender||0),0);
+  const aTotalStab = rounds.reduce((s,r)=>s+(r.stabCost?.attacker||0),0);
+  const dTotalStab = rounds.reduce((s,r)=>s+(r.stabCost?.defender||0),0);
+
+  const latest = rounds[rounds.length-1];
+
+  return `
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:var(--radius)">
+      <div style="text-align:center">
+        <div style="font-size:28px">${aMeta.flag||'🏳'}</div>
+        <div style="font-weight:700;font-size:13px">${war.attacker}</div>
+        <div style="font-size:10px;color:var(--text-dim)">ATTACKER</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:20px">⚔️</div>
+        <div style="font-size:11px;color:${statusColor};font-weight:600">${statusLabel}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px">Round ${totalRounds} · ${war.type||'full'} war</div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:${aMeta.color||'#4a90d9'}">${atkRoundsWon} wins</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;position:relative">
+            <div style="position:absolute;left:0;top:0;height:100%;width:${totalRounds?Math.round(atkRoundsWon/totalRounds*100):50}%;background:${aMeta.color||'#4a90d9'};border-radius:3px"></div>
+          </div>
+          <span style="font-size:11px;color:${dMeta.color||'#e05c6b'}">${defRoundsWon} wins</span>
+        </div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:28px">${dMeta.flag||'🏳'}</div>
+        <div style="font-weight:700;font-size:13px">${war.defender}</div>
+        <div style="font-size:10px;color:var(--text-dim)">DEFENDER</div>
+      </div>
+    </div>
+
+    <!-- Cumulative toll -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      ${warTollCard(war.attacker, aMeta, ac, aTotalBat, aTotalEco, aTotalStab)}
+      ${warTollCard(war.defender, dMeta, dc, dTotalBat, dTotalEco, dTotalStab)}
+    </div>
+
+    <!-- Latest round breakdown -->
+    ${latest ? `
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-dim);letter-spacing:.5px;margin-bottom:8px">
+          ⚔️ Round ${totalRounds} Breakdown (Turn ${latest.turn} — ${latest.date||''})
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${warStrengthCard(war.attacker, aMeta, latest.atkFactors, latest.atkStr)}
+          ${warStrengthCard(war.defender, dMeta, latest.defFactors, latest.defStr)}
+        </div>
+        <div style="margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px">
+          🎲 <strong>${latest.winner}</strong> wins this round
+          &nbsp;·&nbsp; Attacker strength: <strong>${latest.atkStr}</strong>
+          &nbsp;·&nbsp; Defender strength: <strong>${latest.defStr}</strong>
+          &nbsp;·&nbsp; Dice roll modifier: <strong>${latest.roll}/115</strong>
+        </div>
+        <div style="margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px">
+          💥 Casualties this round:
+          &nbsp; ${war.attacker} lost <strong class="text-red">${latest.casualties?.attacker?.battalions||0} bat</strong>
+          ${latest.casualties?.attacker?.mechDivisions>0?`<strong class="text-red">, ${latest.casualties.attacker.mechDivisions} mech</strong>`:''}
+          ${latest.casualties?.attacker?.airWings>0?`<strong class="text-red">, ${latest.casualties.attacker.airWings} air</strong>`:''}
+          &nbsp;(${latest.casualties?.attacker?.lossRate||0}% loss rate)
+          &emsp;
+          ${war.defender} lost <strong class="text-red">${latest.casualties?.defender?.battalions||0} bat</strong>
+          ${latest.casualties?.defender?.mechDivisions>0?`<strong class="text-red">, ${latest.casualties.defender.mechDivisions} mech</strong>`:''}
+          ${latest.casualties?.defender?.airWings>0?`<strong class="text-red">, ${latest.casualties.defender.airWings} air</strong>`:''}
+          &nbsp;(${latest.casualties?.defender?.lossRate||0}% loss rate)
+          <br><br>
+          💰 Economy cost:
+          ${war.attacker} <strong class="text-red">−${latest.econCost?.attacker||0}</strong>
+          &emsp; ${war.defender} <strong class="text-red">−${latest.econCost?.defender||0}</strong>
+          &emsp; | &emsp;
+          🏛 Stability cost:
+          ${war.attacker} <strong class="text-red">−${latest.stabCost?.attacker||0}</strong>
+          &emsp; ${war.defender} <strong class="text-red">−${latest.stabCost?.defender||0}</strong>
+        </div>
+      </div>
+    ` : '<div class="text-dim" style="font-size:12px;margin-bottom:12px">No combat resolved yet.</div>'}
+
+    <!-- Round history -->
+    ${rounds.length>1 ? `
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-dim);letter-spacing:.5px;margin-bottom:8px">📜 Round History</div>
+      ${[...rounds].reverse().slice(1).map((r,i)=>`
+        <div style="padding:8px 10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span>Round ${rounds.length-1-i} — Turn ${r.turn} (${r.date||''})</span>
+            <span style="font-weight:700;color:${r.winner===war.attacker?(aMeta.color||'#4a90d9'):(dMeta.color||'#e05c6b')}">
+              ${PLAYER_META[r.winner]?.flag||'🏳'} ${r.winner} wins
+            </span>
+          </div>
+          <span class="text-dim">Strength: ${r.atkStr} vs ${r.defStr}</span>
+          &emsp;|&emsp;
+          <span class="text-red">Losses: ${war.attacker} −${r.casualties?.attacker?.battalions||0} bat · ${war.defender} −${r.casualties?.defender?.battalions||0} bat</span>
+        </div>
+      `).join('')}
+    ` : ''}
+  `;
+}
+
+function warTollCard(id, meta, c, batLost, ecoLost, stabLost){
+  return `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px">
+      <div style="font-size:11px;font-weight:700;color:${meta.color||'#888'};margin-bottom:6px">${meta.flag||''} ${id} — War Toll</div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:12px">
+        <div style="display:flex;justify-content:space-between"><span class="text-dim">Battalions lost</span><span class="text-red">−${batLost}</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-dim">Battalions remaining</span><span>${c?.military?.battalions??'?'}</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-dim">Economy drained</span><span class="text-red">−${ecoLost}</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-dim">Stability lost</span><span class="text-red">−${stabLost}</span></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-dim">Current stability</span><span>${c?.stability??'?'}</span></div>
+      </div>
+    </div>`;
+}
+
+function warStrengthCard(id, meta, factors, total){
+  if(!factors) return `<div class="text-dim" style="font-size:12px">No data</div>`;
+  return `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px">
+      <div style="font-size:11px;font-weight:700;color:${meta.color||'#888'};margin-bottom:6px">
+        ${meta.flag||''} ${id} — Total Strength: <strong>${total}</strong>
+      </div>
+      ${(factors.steps||[]).map(f=>`
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px solid var(--border)">
+          <span class="text-dim">${f.label}</span>
+          <span class="${f.value>=0?'text-green':'text-red'}" style="font-weight:600">${f.value>=0?'+':''}${f.value}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);padding:1px 0 3px 0">${f.detail}</div>
+      `).join('')}
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════
