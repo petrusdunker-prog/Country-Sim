@@ -2198,6 +2198,8 @@ const INITIAL_STATE = {
   worldTension:0,          // 0-100 global tension meter
   factions:[],             // [{id,name,leader,members:[],formed}]
   peaceConferences:[],     // [{id,winner,loser,turn,options:[],chosen:null}]
+  peaceProposals:[],       // [{id,from,to,attacker,defender,termId,turn,status}] — in-war negotiation
+  nonAggressionPacts:[],   // [{a,b,until}] — no-declare agreements
   activeDisasters:[],      // [{id,country,type,label,severity,turnsLeft,responded}]
   loans:[],                // [{id,from,to,amount,interestPerTurn,turnsLeft}]
   loanProposals:[],        // [{id,from,to,amount,interestPerTurn,turns,turn}]
@@ -2553,7 +2555,9 @@ function normalizeState(s){
   if(!s.bilateralDeals) s.bilateralDeals = {};
   if(s.worldTension === undefined) s.worldTension = 0;
   if(!s.factions) s.factions = [];
-  if(!s.peaceConferences) s.peaceConferences = [];
+  if(!s.peaceConferences)   s.peaceConferences   = [];
+  if(!s.peaceProposals)     s.peaceProposals     = [];
+  if(!s.nonAggressionPacts) s.nonAggressionPacts = [];
   if(!s.activeDisasters) s.activeDisasters = [];
   if(!s.loans) s.loans = [];
   if(!s.loanProposals) s.loanProposals = [];
@@ -3073,6 +3077,31 @@ function renderActionPanel(id){
     ${c.economy.pool < 5 ? `<div style="margin-top:6px;padding:6px 8px;background:#1a0a00;border:1px solid var(--orange);border-radius:var(--radius);font-size:10px;color:var(--orange)">⚠ Economy pool is low (${c.economy.pool}). You may not be able to afford actions.</div>
     <button class="btn" style="width:100%;margin-top:4px;border-color:var(--orange);color:var(--orange)" onclick="skipTurn('${id}')">⏭ Skip Turn (submit no actions)</button>` : ''}
     ${(()=>{ const ps = session.pid ? profileSummary(session.pid) : null; return ps ? `<div style="margin-top:6px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:10px;color:var(--text-dim)">🧠 Away AI profile: ${ps}</div>` : ''; })()}
+    ${(()=>{
+      // ── Peace proposal buttons — shown for every active war this country is in ──
+      const activeWars = (GS.wars||[]).filter(w=>w.status==='active'&&(w.attacker===id||w.defender===id));
+      if(!activeWars.length) return '';
+      return `<div style="margin-top:8px;padding:8px 10px;background:#1a0a0a;border:1px solid var(--red)44;border-radius:var(--radius)">
+        <div style="font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">⚔️ Active Wars</div>
+        ${activeWars.map(w=>{
+          const enemy = w.attacker===id ? w.defender : w.attacker;
+          const eM = PLAYER_META[enemy]||PLAYABLE_COUNTRIES[enemy]||{flag:'🏳'};
+          const hasPending = (GS.peaceProposals||[]).some(p=>p.from===id&&p.attacker===w.attacker&&p.defender===w.defender&&p.status==='pending');
+          const incomingP  = (GS.peaceProposals||[]).find(p=>p.to===id&&p.attacker===w.attacker&&p.defender===w.defender&&p.status==='pending');
+          const rounds = w.rounds||[];
+          const myWins = rounds.filter(r=>r.winner===id).length;
+          const theirWins = rounds.length - myWins;
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-size:12px">${eM.flag}</span>
+            <span style="font-size:11px;font-weight:700">${enemy}</span>
+            <span style="font-size:10px;color:var(--text-dim)">${myWins}–${theirWins} rounds</span>
+            ${incomingP?`<button class="btn" style="font-size:10px;padding:2px 9px;border-color:var(--green);color:var(--green)" onclick="showIncomingPeaceProposal('${incomingP.id}')">📨 Peace offer received!</button>`
+            :hasPending?`<span style="font-size:10px;color:var(--orange);padding:2px 8px;border:1px solid var(--orange)44;border-radius:8px">⏳ Proposal pending…</span>`
+            :`<button class="btn" style="font-size:10px;padding:2px 9px;border-color:var(--accent);color:var(--accent)" onclick="openPeaceProposalModal('${w.attacker}','${w.defender}')">🕊️ Propose Peace</button>`}
+          </div>`;
+        }).join('')}
+      </div>`;
+    })()}
   </div>`;
 
   const noteEl = document.getElementById('act-note-0');
@@ -5424,6 +5453,254 @@ function applyPeaceDemand(confId, optionId){
   pushState(); updateAllUI();
 }
 
+// ══════════════════════════════════════════════════════════════
+//  IN-WAR PEACE PROPOSALS — either side can propose during active war
+// ══════════════════════════════════════════════════════════════
+
+// Returns 'proposer_winning' | 'responder_winning' | 'stalemate' from proposer's perspective
+function getWarStanding(war, proposer){
+  const rounds = war.rounds||[];
+  const pWins = rounds.filter(r=>r.winner===proposer).length;
+  const rWins = rounds.length - pWins;
+  if(pWins - rWins >  1) return 'proposer_winning';
+  if(pWins - rWins < -1) return 'responder_winning';
+  return 'stalemate';
+}
+
+function openPeaceProposalModal(attacker, defender){
+  const myId = session.country;
+  if(!GS) return;
+  const war = (GS.wars||[]).find(w=>w.attacker===attacker&&w.defender===defender&&w.status==='active');
+  if(!war){ toast('War not found','error'); return; }
+  const isMyWar = myId===attacker||myId===defender;
+  if(!isMyWar && myId!=='gm'){ toast('Not your war','error'); return; }
+  const proposer  = (myId==='gm') ? attacker : myId;
+  const responder = proposer===attacker ? defender : attacker;
+  const standing  = getWarStanding(war, proposer);
+  const pMeta = PLAYER_META[proposer]||PLAYABLE_COUNTRIES[proposer]||{flag:'🏳'};
+  const rMeta = PLAYER_META[responder]||PLAYABLE_COUNTRIES[responder]||{flag:'🏳'};
+  const rounds = war.rounds||[];
+  const pWins = rounds.filter(r=>r.winner===proposer).length;
+  const rWins = rounds.length - pWins;
+  const existing = (GS.peaceProposals||[]).find(p=>p.from===proposer&&p.attacker===attacker&&p.defender===defender&&p.status==='pending');
+
+  const isWin  = standing==='proposer_winning';
+  const isLoss = standing==='responder_winning';
+  const repAmt  = isWin ? 30 : 15;
+  const tribAmt = isWin ? 4  : 2;
+
+  const TERMS = [
+    { id:'white_peace',  always:true,   icon:'🕊️', label:'White Peace',
+      desc:'Ceasefire — both sides stop fighting immediately. No conditions, no payments.',
+      warn: isWin ? 'You\'re winning — white peace gives you nothing extra.' : null },
+    { id:'reparations',  enabled:isWin||!isLoss, icon:'💰', label:`War Reparations — ${responder} pays ${repAmt} eco`,
+      desc:`${responder} transfers ${repAmt} eco from their pool to yours as immediate compensation.` },
+    { id:'tribute',      enabled:isWin,  icon:'👑', label:`Annual Tribute — ${responder} pays ${tribAmt} eco/turn × 5 turns`,
+      desc:`${responder} pays ${tribAmt} eco per turn for 5 turns (total ${tribAmt*5} eco) as a war levy.` },
+    { id:'resources',    enabled:isWin||!isLoss, icon:'📦', label:`Resource Seizure — ${responder} surrenders stockpile`,
+      desc:`${responder} hands over up to 5 energy and 5 critical minerals from their strategic reserves.` },
+    { id:'puppet',       enabled:isWin,  icon:'🎭', label:`Puppet Treaty — ${responder} becomes a puppet state`,
+      desc:`${responder} pays 3 eco/turn tribute permanently. Foreign policy constrained. +8 prestige.`,
+      warn:'Causes permanent instability for the puppet and raises world tension by 8.' },
+    { id:'trade_force',  enabled:isWin||!isLoss, icon:'📋', label:`Trade Concession — ${responder} opens forced free trade`,
+      desc:`${responder} is required to maintain a 15% FTA discount with you indefinitely.` },
+    { id:'demilitarize', enabled:isWin,  icon:'🪖', label:`Demilitarization — ${responder} disbands 20 battalions`,
+      desc:`${responder} must immediately disband 20 battalions, permanently weakening their military.` },
+    { id:'aid_offer',    enabled:isLoss||!isWin, icon:'🤝', label:`Generous Peace — you pay ${responder} 10 eco`,
+      desc:'You offer 10 eco as a goodwill gesture in exchange for an immediate ceasefire. Useful when losing.' },
+    { id:'non_aggression', always:true,  icon:'🛡️', label:'Non-Aggression Pact (5 turns)',
+      desc:'Both sides commit not to declare war on each other for the next 5 turns. +3 stability each.' },
+  ].filter(t=>t.always||t.enabled);
+
+  document.getElementById('peaceProposalModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'peaceProposalModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px';
+
+  const standBg  = isWin?'#0a2a0a':isLoss?'#2a0a0a':'#1a1a00';
+  const standBdr = isWin?'var(--green)':isLoss?'var(--red)':'var(--orange)';
+  const standTxt = isWin?`<span style="color:var(--green)">🟢 You are WINNING (${pWins}–${rWins} rounds)</span>`
+                 : isLoss?`<span style="color:var(--red)">🔴 You are LOSING (${pWins}–${rWins} rounds)</span>`
+                 :         `<span style="color:var(--orange)">🟡 STALEMATE (${pWins}–${rWins} rounds)</span>`;
+
+  modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;max-width:530px;width:100%;max-height:90vh;overflow-y:auto;padding:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:26px">🕊️</span>
+      <div><div style="font-size:15px;font-weight:700">Peace Proposal</div>
+        <div style="font-size:11px;color:var(--text-dim)">${pMeta.flag} ${proposer} proposes to ${rMeta.flag} ${responder}</div></div>
+      <button class="btn" style="margin-left:auto" onclick="document.getElementById('peaceProposalModal').remove()">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;background:${standBg};border:1px solid ${standBdr}44;border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;font-size:12px;gap:8px">
+      ${standTxt}<span style="color:var(--text-dim);margin-left:auto;font-size:10px">Round ${rounds.length} · T${war.startTurn}</span>
+    </div>
+    ${existing?`<div style="padding:8px 12px;background:#2a1a0a;border:1px solid var(--orange)44;border-radius:var(--radius);margin-bottom:10px;font-size:11px;color:var(--orange)">
+      ⏳ You already have a pending proposal. Cancel it first to send new terms.
+      <button class="btn danger" style="font-size:10px;margin-left:8px;padding:2px 7px" onclick="cancelPeaceProposal('${existing.id}')">Cancel</button></div>`:''}
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Choose terms — <strong>${responder}</strong> will accept or reject.</div>
+    <form id="peaceTermsForm" onsubmit="event.preventDefault();submitPeaceProposal('${attacker}','${defender}','${proposer}')">
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px" id="peaceTermsList">
+        ${TERMS.map((t,i)=>`<label id="ptl_${t.id}" style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid ${i===0?'var(--accent)':'var(--border2)'};border-radius:var(--radius);cursor:pointer;background:var(--surface2);transition:border-color .1s">
+          <input type="radio" name="peaceTerm" value="${t.id}" ${i===0?'checked':''}
+            onchange="document.querySelectorAll('#peaceTermsList label').forEach(l=>l.style.borderColor='var(--border2)');document.getElementById('ptl_${t.id}').style.borderColor='var(--accent)'">
+          <div><div style="font-size:12px;font-weight:600">${t.icon} ${t.label}</div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${t.desc}</div>
+            ${t.warn?`<div style="font-size:10px;color:var(--orange);margin-top:2px">⚠️ ${t.warn}</div>`:''}
+          </div></label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" type="submit" style="flex:1;padding:9px;font-size:12px;font-weight:700" ${existing?'disabled':''}>
+          📨 Send to ${responder}</button>
+        <button class="btn" type="button" onclick="document.getElementById('peaceProposalModal').remove()" style="padding:9px 14px">Cancel</button>
+      </div>
+      ${existing?`<div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:5px">Cancel existing proposal first.</div>`:''}
+    </form>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
+}
+
+function submitPeaceProposal(attacker, defender, proposer){
+  const termId = document.querySelector('#peaceTermsForm input[name="peaceTerm"]:checked')?.value;
+  if(!termId){ toast('Select a peace term','error'); return; }
+  const war = (GS.wars||[]).find(w=>w.attacker===attacker&&w.defender===defender&&w.status==='active');
+  if(!war){ toast('War not found or already ended','error'); return; }
+  const responder = proposer===attacker ? defender : attacker;
+  if(!GS.peaceProposals) GS.peaceProposals=[];
+  const proposal = { id:'pp_'+Date.now().toString(36), from:proposer, to:responder,
+    attacker, defender, termId, turn:GS.turn, status:'pending' };
+  GS.peaceProposals.push(proposal);
+  document.getElementById('peaceProposalModal')?.remove();
+  // AI auto-respond
+  const responderIsAI = !GS.slots?.[responder] || GS.slots[responder]?.isAI;
+  if(responderIsAI){
+    aiRespondToPeaceProposal(proposal, war); return;
+  }
+  GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+    title:`🕊️ ${proposer} proposes peace with ${responder}`,
+    body:`${proposer} has sent peace terms to ${responder}. Check the Relations tab to respond.`});
+  pushState(); updateAllUI();
+  toast(`Peace proposal sent — ${responder} will see it in their Relations tab.`,'info');
+}
+
+function cancelPeaceProposal(proposalId){
+  const p = (GS.peaceProposals||[]).find(x=>x.id===proposalId);
+  if(!p||p.status!=='pending') return;
+  if(p.from!==session.country&&session.country!=='gm'){ toast('Not your proposal','error'); return; }
+  p.status='cancelled';
+  document.getElementById('peaceProposalModal')?.remove();
+  pushState(); updateAllUI(); toast('Proposal cancelled','info');
+}
+
+function respondToPeace(proposalId, accept){
+  const proposal = (GS.peaceProposals||[]).find(p=>p.id===proposalId);
+  if(!proposal||proposal.status!=='pending'){ toast('Proposal no longer active','error'); return; }
+  if(proposal.to!==session.country&&session.country!=='gm'){ toast('Not your proposal to respond to','error'); return; }
+  const war = (GS.wars||[]).find(w=>w.attacker===proposal.attacker&&w.defender===proposal.defender&&w.status==='active');
+  proposal.status = accept ? 'accepted' : 'rejected';
+  if(accept && war) applyPeaceTermsFromProposal(proposal, war);
+  else if(!accept){
+    GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+      title:`❌ ${proposal.to} rejects peace`,
+      body:`${proposal.to} has rejected the peace proposal from ${proposal.from}. The war continues.`});
+  }
+  pushState(); updateAllUI();
+  toast(accept?'🕊️ Peace accepted! Terms applied.':'❌ Proposal rejected. War continues.', accept?'success':'info');
+}
+
+function aiRespondToPeaceProposal(proposal, war){
+  if(!GS) return;
+  const aiId = proposal.to;
+  const aiC  = GS.countries[aiId];
+  if(!aiC) return;
+  const standing  = getWarStanding(war, proposal.from); // from proposer's PoV
+  const aiLosing  = standing==='proposer_winning';
+  const aiWinning = standing==='responder_winning';
+  const lowStab   = (aiC.stability||50) < 25;
+  const lowBat    = (aiC.military?.battalions||10) < 5;
+  let accept = false;
+  if(aiLosing||lowStab||lowBat){
+    accept = proposal.termId!=='puppet' || lowBat; // accept most terms if desperate
+  } else if(aiWinning){
+    accept = proposal.termId==='white_peace' && Math.random()<0.20; // rarely accept if winning
+  } else {
+    accept = proposal.termId==='white_peace' ? Math.random()<0.55 : Math.random()<0.30;
+  }
+  proposal.status = accept ? 'accepted' : 'rejected';
+  if(accept && war) applyPeaceTermsFromProposal(proposal, war);
+  GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+    title:`🤖 ${aiId} ${accept?'accepts':'rejects'} peace`,
+    body:`${aiId} (AI) has ${accept?'accepted':'rejected'} the peace proposal from ${proposal.from}.${accept?'':' The war continues.'}`});
+  pushState(); updateAllUI();
+  toast(accept?`🕊️ ${aiId} accepted your peace proposal!`:`❌ ${aiId} rejected your proposal. The war continues.`, accept?'success':'info');
+}
+
+function applyPeaceTermsFromProposal(proposal, war){
+  const demander = proposal.from;
+  const yielder  = proposal.to;
+  const dC = GS.countries[demander];
+  const yC = GS.countries[yielder];
+  const standing = getWarStanding(war, demander);
+  const repAmt  = standing==='proposer_winning' ? 30 : 15;
+  const tribAmt = standing==='proposer_winning' ? 4  : 2;
+  switch(proposal.termId){
+    case 'reparations':
+      if(dC&&yC){ const a=Math.min(repAmt,yC.economy.pool||0); yC.economy.pool=Math.max(0,(yC.economy.pool||0)-a); dC.economy.pool=(dC.economy.pool||0)+a; }
+      break;
+    case 'tribute':
+      if(!GS.loans) GS.loans=[];
+      GS.loans.push({id:'wt_'+Date.now().toString(36),from:yielder,to:demander,amount:0,interestPerTurn:tribAmt,turnsLeft:5,totalTurns:5});
+      break;
+    case 'resources':
+      if(dC&&yC){
+        const eA=Math.min(5,yC.stockpile?.energy||0), mA=Math.min(5,yC.stockpile?.critMinerals||0);
+        yC.stockpile.energy=Math.max(0,(yC.stockpile.energy||0)-eA); dC.stockpile.energy=(dC.stockpile.energy||0)+eA;
+        yC.stockpile.critMinerals=Math.max(0,(yC.stockpile.critMinerals||0)-mA); dC.stockpile.critMinerals=(dC.stockpile.critMinerals||0)+mA;
+      }
+      break;
+    case 'puppet':
+      if(dC&&yC){ yC.puppet={overlord:demander,tributePerTurn:3}; if(!dC.tributeFrom)dC.tributeFrom=[]; dC.tributeFrom.push({country:yielder,amount:3}); dC.prestige=(dC.prestige||0)+8; bumpWorldTension(8,`${yielder} puppeted by ${demander}`); }
+      break;
+    case 'trade_force':
+      { const key=[demander,yielder].sort().join('|'); if(!GS.bilateralDeals)GS.bilateralDeals={};
+        GS.bilateralDeals[key]={discount:0.15,since:GS.turn,from:demander,to:yielder,forced:true};
+        if(dC?.diplomacy&&!dC.diplomacy.agreements.includes(yielder)) dC.diplomacy.agreements.push(yielder);
+        if(yC?.diplomacy&&!yC.diplomacy.agreements.includes(demander)) yC.diplomacy.agreements.push(demander); }
+      break;
+    case 'demilitarize':
+      if(yC) yC.military.battalions=Math.max(0,(yC.military.battalions||0)-20);
+      break;
+    case 'aid_offer':
+      if(dC&&yC){ const a=Math.min(10,dC.economy.pool||0); dC.economy.pool=Math.max(0,(dC.economy.pool||0)-a); yC.economy.pool=(yC.economy.pool||0)+a; }
+      break;
+    case 'non_aggression':
+      if(!GS.nonAggressionPacts)GS.nonAggressionPacts=[];
+      GS.nonAggressionPacts.push({a:demander,b:yielder,until:GS.turn+5});
+      if(dC) dC.stability=Math.min(100,(dC.stability||50)+3);
+      if(yC) yC.stability=Math.min(100,(yC.stability||50)+3);
+      break;
+    // white_peace: no extra effects
+  }
+  // End the war
+  war.status='ended'; war.result=proposal.termId==='white_peace'?'white_peace':demander; war.endTurn=GS.turn; war.peaceTermId=proposal.termId;
+  if(dC?.atWar) dC.atWar=dC.atWar.filter(e=>e!==yielder);
+  if(yC?.atWar) yC.atWar=yC.atWar.filter(e=>e!==demander);
+  // Both sides recover stability
+  if(dC) dC.stability=Math.min(100,(dC.stability||50)+8);
+  if(yC) yC.stability=Math.min(100,(yC.stability||50)+5);
+  bumpWorldTension(-6,`Peace: ${demander} & ${yielder}`);
+  const TERM_LABELS={white_peace:'White Peace',reparations:'War Reparations',tribute:'War Tribute',resources:'Resource Seizure',puppet:'Puppet Treaty',trade_force:'Trade Concession',demilitarize:'Demilitarization',aid_offer:'Peace + Aid',non_aggression:'Non-Aggression Pact'};
+  const rounds = war.rounds||[];
+  GS.newsBoard?.unshift({id:Date.now().toString(36),turn:GS.turn,type:'event',category:'military',
+    title:`🕊️ Peace: ${demander} & ${yielder} (${TERM_LABELS[proposal.termId]||proposal.termId})`,
+    body:`The war between ${war.attacker} and ${war.defender} has ended after ${rounds.length} rounds. Terms: ${TERM_LABELS[proposal.termId]||proposal.termId}.`});
+}
+
+function processExpiredPeaceProposals(){
+  (GS.peaceProposals||[]).forEach(p=>{
+    if(p.status==='pending'&&(GS.turn-p.turn)>=2) p.status='expired';
+  });
+}
+
 function processPuppetTributes(){
   if(!GS) return;
   Object.entries(GS.countries).forEach(([id,c])=>{
@@ -5626,6 +5903,7 @@ function processTurn(internal=false){
   generateDisasters();
   generateClimateDisasters();
   processPuppetTributes();
+  processExpiredPeaceProposals();
   decayWorldTension();
   processMigration();
   processTechRaces();
@@ -9309,9 +9587,78 @@ function renderRelationsTab(){
     }
   }
 
+  // ── In-War Peace Proposals ───────────────────────────────────
+  let peaceProposalsSection = '';
+  if(isPlayer){
+    const incoming = (GS.peaceProposals||[]).filter(p=>p.to===myId && p.status==='pending');
+    const outgoing = (GS.peaceProposals||[]).filter(p=>p.from===myId && p.status==='pending');
+    if(incoming.length || outgoing.length){
+      const PEACE_TERM_META = {
+        white_peace:    { label:'🕊️ White Peace',           desc:'Both sides return to pre-war borders. No gains or losses.' },
+        reparations:    { label:'💰 Reparations',            desc:'Loser pays 20 economy to winner.' },
+        tribute:        { label:'👑 Annual Tribute',         desc:'Loser pays 3 eco/turn for 5 turns.' },
+        resources:      { label:'⛏️ Resource Seizure',       desc:'Winner takes up to 5 energy + 5 critical minerals.' },
+        puppet:         { label:'🔗 Puppet State',           desc:'Loser becomes a puppet — tribute every turn, foreign policy constrained.' },
+        trade_force:    { label:'📋 Forced Trade Deal',      desc:'Loser opens free trade at 15% discount for winner.' },
+        demilitarize:   { label:'🛡️ Demilitarisation',      desc:'Loser loses 20 battalions.' },
+        aid_offer:      { label:'🤝 Aid Offer (Magnanimous)',desc:'Winner pays 10 eco to loser — goodwill peace.' },
+        non_aggression: { label:'🤝 Non-Aggression Pact',    desc:'Both sides agree not to declare war for 5 turns. +3 stability each.' },
+      };
+      const inCards = incoming.map(p=>{
+        const war = (GS.wars||[]).find(w=>w.attacker===p.attacker&&w.defender===p.defender&&w.status==='active');
+        const fromMeta = PLAYER_META[p.from]||{flag:'🌐',name:p.from};
+        const tm = PEACE_TERM_META[p.termId]||{label:p.termId,desc:''};
+        const standing = war ? getWarStanding(war, p.from) : 'stalemate';
+        const standingLabel = standing==='proposer_winning' ? '⚠️ They are currently winning'
+                            : standing==='responder_winning' ? '✅ You are currently winning'
+                            : '⚖️ War is a stalemate';
+        return `<div class="loan-card" style="border-color:var(--red)66;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:16px">${fromMeta.flag}</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">${p.from} proposes peace</div>
+              <div style="font-size:10px;color:var(--text-dim)">${standingLabel} · Turn ${p.turn}</div>
+            </div>
+          </div>
+          <div style="background:var(--surface2);border-radius:var(--radius);padding:8px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:2px">${tm.label}</div>
+            <div style="font-size:10px;color:var(--text-dim)">${tm.desc}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" style="flex:1;border-color:var(--green);color:var(--green);font-weight:700;font-size:11px" onclick="respondToPeace('${p.id}',true)">✓ Accept</button>
+            <button class="btn danger" style="flex:1;font-size:11px" onclick="respondToPeace('${p.id}',false)">✗ Reject</button>
+          </div>
+        </div>`;
+      }).join('');
+      const outCards = outgoing.map(p=>{
+        const fromMeta = PLAYER_META[p.to]||{flag:'🌐',name:p.to};
+        const tm = PEACE_TERM_META[p.termId]||{label:p.termId,desc:''};
+        return `<div class="loan-card" style="border-color:var(--accent)44;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:16px">${fromMeta.flag}</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--text)">Proposal to ${p.to}</div>
+              <div style="font-size:10px;color:var(--text-dim)">⏳ Awaiting response · Turn ${p.turn}</div>
+            </div>
+          </div>
+          <div style="background:var(--surface2);border-radius:var(--radius);padding:8px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-dim)">${tm.label}</div>
+          </div>
+          <button class="btn danger" style="width:100%;font-size:10px" onclick="cancelPeaceProposal('${p.id}')">✕ Cancel Proposal</button>
+        </div>`;
+      }).join('');
+      peaceProposalsSection = `<div class="rel-section" style="border-color:var(--red)55">
+        <h3 style="color:var(--red)">☮️ Peace Proposals</h3>
+        ${incoming.length ? `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px">📨 Incoming — requires your response</div>${inCards}` : ''}
+        ${outgoing.length ? `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin:${incoming.length?'10px':0} 0 8px">📤 Your Outgoing Proposals</div>${outCards}` : ''}
+      </div>`;
+    }
+  }
+
   el.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px">
       ${peaceSection}
+      ${peaceProposalsSection}
       ${loansSection}
       ${proposalsSection}
       ${summarySection}
@@ -9362,6 +9709,51 @@ function directProposeFTA(targetId, rateStr){
   pushState();
   renderRelationsTab();
   toast(`FTA proposal sent to ${targetId} — offering ${pct}% discount`,'success');
+}
+
+// Show a modal for the RESPONDER to accept or reject an incoming proposal
+function showIncomingPeaceProposal(proposalId){
+  const proposal = (GS.peaceProposals||[]).find(p=>p.id===proposalId);
+  if(!proposal||proposal.status!=='pending'){ toast('Proposal no longer active','info'); updateAllUI(); return; }
+  const pM = PLAYER_META[proposal.from]||PLAYABLE_COUNTRIES[proposal.from]||{flag:'🏳'};
+  const rM = PLAYER_META[proposal.to]  ||PLAYABLE_COUNTRIES[proposal.to]  ||{flag:'🏳'};
+  const war = (GS.wars||[]).find(w=>w.attacker===proposal.attacker&&w.defender===proposal.defender);
+  const rounds = war?.rounds||[];
+  const TERM_LABELS={white_peace:'🕊️ White Peace',reparations:'💰 War Reparations',tribute:'👑 War Tribute',resources:'📦 Resource Seizure',puppet:'🎭 Puppet Treaty',trade_force:'📋 Trade Concession',demilitarize:'🪖 Demilitarization',aid_offer:'🤝 Peace + Aid (they pay you)',non_aggression:'🛡️ Non-Aggression Pact'};
+  const TERM_DESCS={
+    white_peace:`Ceasefire — no conditions, no payments. Both sides stop fighting.`,
+    reparations:`You pay ${proposal.from} war reparations immediately from your eco pool.`,
+    tribute:`You pay ${proposal.from} eco per turn for 5 turns as a war levy.`,
+    resources:`You surrender energy and critical minerals from your stockpile.`,
+    puppet:`You become a puppet of ${proposal.from} — paying 3 eco/turn tribute permanently.`,
+    trade_force:`You open a forced free trade agreement with ${proposal.from}.`,
+    demilitarize:`You must disband 20 of your battalions immediately.`,
+    aid_offer:`${proposal.from} pays you 10 eco as a goodwill gesture.`,
+    non_aggression:`Both sides agree not to declare war for 5 turns. +3 stability each.`,
+  };
+  document.getElementById('incomingPeaceModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'incomingPeaceModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;max-width:460px;width:100%;padding:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:26px">📨</span>
+      <div><div style="font-size:15px;font-weight:700">Incoming Peace Proposal</div>
+        <div style="font-size:11px;color:var(--text-dim)">${pM.flag} ${proposal.from} → ${rM.flag} ${proposal.to}</div></div>
+      <button class="btn" style="margin-left:auto" onclick="document.getElementById('incomingPeaceModal').remove()">✕</button>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">${TERM_LABELS[proposal.termId]||proposal.termId}</div>
+      <div style="font-size:11px;color:var(--text-dim)">${TERM_DESCS[proposal.termId]||'See terms above.'}</div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text-dim)">War: ${proposal.attacker} vs ${proposal.defender} · Round ${rounds.length} · Expires in ${Math.max(0,1-(GS.turn-proposal.turn))} turn(s)</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" style="flex:1;padding:9px;font-size:12px;font-weight:700;background:var(--green);border-color:var(--green)" onclick="respondToPeace('${proposalId}',true);document.getElementById('incomingPeaceModal')?.remove()">✅ Accept — End the War</button>
+      <button class="btn danger" style="flex:1;padding:9px;font-size:12px;font-weight:700" onclick="respondToPeace('${proposalId}',false);document.getElementById('incomingPeaceModal')?.remove()">❌ Reject — Keep Fighting</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
 }
 
 function applyPeaceDemandUI(confId){
@@ -11470,7 +11862,7 @@ function _runSoloTurnBody(){
   checkCoupRisk(); checkNuclearBrinkmanship(); checkNuclearDeterrence(); updateAggressionScores();
   generateResourceDiscoveries(); applyCrossContAlliances(); checkObjectiveCompletion();
   applyFactionBonuses(); applyContientBonuses(); processLoanRepayments(); applyDisasterEffects();
-  generateDisasters(); generateClimateDisasters(); processPuppetTributes(); decayWorldTension();
+  generateDisasters(); generateClimateDisasters(); processPuppetTributes(); processExpiredPeaceProposals(); decayWorldTension();
   processMigration(); processTechRaces(); updateClimateStress();
   Object.values(GS.countries).forEach(c=>{if(c.espionage)c.espionage.opsThisTurn=0;});
   GS.turnResults = {};
