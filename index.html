@@ -3824,6 +3824,7 @@ function renderGmConsole(){
       ${_roomCode ? `<button class="btn" style="border-color:#8b1a1a;color:#ff6b6b;background:#1a0000" onclick="deleteRoom()">🗑 Delete Room</button>` : ''}
     </div>
     ${_roomCode ? renderAddAiPanel() : ''}
+    ${renderLLMAIPanel()}
     <h3 style="font-size:12px;font-weight:700;margin-top:14px;margin-bottom:6px">Submitted Actions</h3>
     <div class="actions-grid">
       ${Object.entries(GS.countries).map(([id,c])=>{
@@ -3831,9 +3832,15 @@ function renderGmConsole(){
         if(!m) return '';
         const isOfflineAI = !!GS.slots[id]?.offlineAI;
         const isFullAI = !!(GS.slots[id]?.isAI && !isOfflineAI);
-        const cardBorder = isFullAI ? 'border-color:var(--accent);' : isOfflineAI ? 'border-color:var(--orange);' : '';
+        const isLLMAI = !!(GS.slots[id]?.isAI && GS.slots[id]?.llmModel && !isOfflineAI);
+        const llmProvider = GS.slots[id]?.llmModel;
+        const llmIcons = { claude:'🟠', openai:'🟢', gemini:'🔵' };
+        const llmNames = { claude:'Claude', openai:'ChatGPT', gemini:'Gemini' };
+        const cardBorder = isLLMAI ? 'border-color:#a78bfa;' : isFullAI ? 'border-color:var(--accent);' : isOfflineAI ? 'border-color:var(--orange);' : '';
         const _awayProfile = isOfflineAI ? profileSummary(GS.slots[id]?.pid) : null;
-        const playerLabel = isFullAI
+        const playerLabel = isLLMAI
+          ? `${llmIcons[llmProvider]||'🧠'} ${llmNames[llmProvider]||'LLM'} AI <span style="color:#a78bfa;font-size:9px;font-weight:700">LLM</span>`
+          : isFullAI
           ? `AI <span style="color:var(--accent);font-size:9px;font-weight:700">🤖 ROOM AI</span>`
           : isOfflineAI
             ? `${m.player} <span style="color:var(--orange);font-size:9px;font-weight:700">💤 AWAY AI</span>${_awayProfile ? `<div style="font-size:9px;color:var(--text-dim);margin-top:1px">📊 ${_awayProfile}</div>` : `<div style="font-size:9px;color:var(--text-dim);margin-top:1px">📊 Learning… (needs 3+ turns of data)</div>`}`
@@ -4435,6 +4442,224 @@ function renderAddAiPanel(){
     <button class="btn" style="border-color:var(--accent);color:var(--accent)" onclick="autoFillRoomAI()">🎲 Auto-Fill</button>
   </div>
   <div style="font-size:10px;color:var(--text-dim);margin-top:5px">Auto-Fill adds AI countries based on player count (1 human → 5 AIs, 2 → 4, 3 → 3, etc.)</div>
+</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LLM AI PLAYERS — Claude · ChatGPT · Gemini
+// ══════════════════════════════════════════════════════════════
+
+let LLM_KEYS = JSON.parse(localStorage.getItem('sovereign_llm_keys') || '{}');
+
+function saveLLMKeys(){
+  const c = document.getElementById('llm-key-claude')?.value?.trim() || '';
+  const o = document.getElementById('llm-key-openai')?.value?.trim() || '';
+  const g = document.getElementById('llm-key-gemini')?.value?.trim() || '';
+  LLM_KEYS = { claude: c, openai: o, gemini: g };
+  localStorage.setItem('sovereign_llm_keys', JSON.stringify(LLM_KEYS));
+  toast('API keys saved to browser storage', 'success');
+}
+
+function buildLLMPrompt(id, c){
+  const sp = c.stockpile || {};
+  const affordableActions = [];
+  Object.entries(ACTION_COSTS).forEach(([cat, actions]) => {
+    actions.forEach(a => {
+      if(
+        c.economy.pool >= (a.eco||0) &&
+        (sp.constructionMats||0) >= (a.mat||0) &&
+        (sp.critMinerals||0) >= (a.min||0) &&
+        (sp.energy||0) >= (a.egy||0)
+      ) affordableActions.push({ ...a, cat });
+    });
+  });
+  const wars = (c.atWar||[]).join(', ') || 'None';
+  const allies = (c.diplomacy?.allies||[]).join(', ') || 'None';
+  const rivals = (c.diplomacy?.rivals||[]).join(', ') || 'None';
+  return `You are playing as ${id} in a turn-based geopolitical simulation called Sovereign.
+
+YOUR CURRENT STATE:
+- Economy Pool: ${c.economy.pool} | Net Income per turn: ${c.economy.netIncome}
+- Stability: ${c.stability}/100 | Prestige: ${c.prestige}
+- Military: ${c.military.battalions||0} battalions, ${c.military.fleets||0} fleets, ${c.military.airWings||0} air wings
+- Stockpile: ${sp.constructionMats||0} construction mats, ${sp.critMinerals||0} critical minerals, ${sp.energy||0} energy
+- Government: ${GS.slots[id]?.government || 'Unknown'}
+- Allies: ${allies} | Rivals: ${rivals} | At War: ${wars}
+- Turn: ${GS.turn} | World Tension: ${GS.worldTension||0}/100
+
+AFFORDABLE ACTIONS (choose exactly ONE):
+${affordableActions.map((a,i)=>`${i+1}. id="${a.id}" cat="${a.cat}" name="${a.name}" cost=eco${a.eco||0}/mat${a.mat||0}/min${a.min||0}/egy${a.egy||0} — ${a.desc}`).join('\n')}
+
+Respond with ONLY valid JSON, no other text:
+{"actionId":"chosen_id","category":"chosen_cat","note":"one-sentence reason"}`;
+}
+
+async function _llmFetch(provider, prompt){
+  if(provider === 'claude'){
+    const key = LLM_KEYS.claude;
+    if(!key) throw new Error('No Claude API key set');
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({ model:'claude-opus-4-7', max_tokens:300, messages:[{role:'user',content:prompt}] })
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error(`Claude ${r.status}: ${t.slice(0,200)}`); }
+    const d = await r.json();
+    return d.content[0].text;
+  }
+  if(provider === 'openai'){
+    const key = LLM_KEYS.openai;
+    if(!key) throw new Error('No OpenAI API key set');
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+      body: JSON.stringify({ model:'gpt-4o', max_tokens:300, messages:[{role:'user',content:prompt}] })
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error(`OpenAI ${r.status}: ${t.slice(0,200)}`); }
+    const d = await r.json();
+    return d.choices[0].message.content;
+  }
+  if(provider === 'gemini'){
+    const key = LLM_KEYS.gemini;
+    if(!key) throw new Error('No Gemini API key set');
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{maxOutputTokens:300} })
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error(`Gemini ${r.status}: ${t.slice(0,200)}`); }
+    const d = await r.json();
+    return d.candidates[0].content.parts[0].text;
+  }
+  throw new Error(`Unknown provider: ${provider}`);
+}
+
+function _parseLLMAction(text, c){
+  try{
+    const m = text.match(/\{[\s\S]*?\}/);
+    if(!m) return null;
+    const parsed = JSON.parse(m[0]);
+    const { actionId, category, note } = parsed;
+    const sp = c.stockpile || {};
+    const catActions = ACTION_COSTS[category] || [];
+    const action = catActions.find(a => a.id === actionId);
+    if(!action) return null;
+    const canAfford = c.economy.pool >= (action.eco||0) &&
+      (sp.constructionMats||0) >= (action.mat||0) &&
+      (sp.critMinerals||0) >= (action.min||0) &&
+      (sp.energy||0) >= (action.egy||0);
+    if(!canAfford) return null;
+    return { ...action, category, note: note || 'LLM decision' };
+  } catch(e){ return null; }
+}
+
+async function submitLLMAITurns(){
+  if(!GS) return;
+  const pending = Object.entries(GS.slots||{}).filter(([id,s]) => s.isAI && s.llmModel && GS.countries[id] && !GS.countries[id].submitted);
+  if(!pending.length){ toast('No pending LLM AI countries','info'); return; }
+  toast(`🧠 Asking ${pending.length} LLM AI(s) for their decisions…`,'info');
+  const results = await Promise.allSettled(pending.map(async ([id, slot]) => {
+    const c = GS.countries[id];
+    const provider = slot.llmModel;
+    const prompt = buildLLMPrompt(id, c);
+    const text = await _llmFetch(provider, prompt);
+    let action = _parseLLMAction(text, c);
+    if(!action){
+      action = aiDecideAction(id, c, GS.difficulty||'normal');
+      if(action) action = { ...action, note:'[fallback] ' + (action.note||'') };
+    }
+    const sp = c.stockpile || {};
+    if(action){
+      c.economy.pool               = Math.max(0,(c.economy.pool||0)-(action.eco||0));
+      sp.constructionMats          = Math.max(0,(sp.constructionMats||0)-(action.mat||0));
+      sp.critMinerals              = Math.max(0,(sp.critMinerals||0)-(action.min||0));
+      sp.energy                    = Math.max(0,(sp.energy||0)-(action.egy||0));
+      c.actions = [{ category:action.category, actionId:action.id, note:action.note||'LLM decision', warTarget:'' }];
+    } else {
+      c.actions = [{ category:'', actionId:'', note:'', warTarget:'' }];
+    }
+    c.submitted = true;
+    return { id, provider };
+  }));
+  let ok=0, fail=0;
+  results.forEach(r => { if(r.status==='fulfilled') ok++; else { fail++; console.error('LLM AI error:', r.reason); } });
+  toast(`🧠 LLM AI turns: ${ok} OK${fail?' · '+fail+' failed (fallback used)':''}`, fail?'error':'success');
+  if(_roomCode) pushState();
+  renderGmConsole();
+}
+
+function addLLMAI(countryId, provider){
+  if(!countryId || !provider){ toast('Select a country and provider','error'); return; }
+  if(session.country !== 'gm'){ toast('Only the GM can add AI countries','error'); return; }
+  if(!PLAYABLE_COUNTRIES[countryId]){ toast('Unknown country','error'); return; }
+  if(GS.slots[countryId]){ toast(countryId+' is already in the game','error'); return; }
+  const labels = { claude:'Claude AI', openai:'ChatGPT AI', gemini:'Gemini AI' };
+  GS.slots[countryId] = { player: labels[provider]||'LLM AI', government: GOVERNMENT_TYPES[Math.floor(Math.random()*GOVERNMENT_TYPES.length)], isAI:true, llmModel:provider };
+  GS.countries[countryId] = makeCountryState(countryId);
+  buildPlayerMeta();
+  if(_roomCode) pushState();
+  renderGmConsole();
+  updateAllUI();
+  toast(`🧠 ${countryId} added as ${labels[provider]}`);
+}
+
+function renderLLMAIPanel(){
+  const available = Object.keys(PLAYABLE_COUNTRIES).filter(k=>!GS.slots[k]).sort();
+  const llmSlots = Object.entries(GS.slots||{}).filter(([,s])=>s.isAI && s.llmModel);
+  const icons = { claude:'🟠', openai:'🟢', gemini:'🔵' };
+  const pendingCount = llmSlots.filter(([id])=>GS.countries[id]&&!GS.countries[id].submitted).length;
+  return `<div style="margin-top:14px;background:var(--surface);border:1px solid #7c3aed55;border-radius:var(--radius);padding:12px">
+  <div class="section-title" style="color:#a78bfa;margin-bottom:8px">🧠 LLM AI Players — Claude / ChatGPT / Gemini</div>
+
+  <div style="margin-bottom:10px">
+    <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px">API Keys (saved to this browser only)</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;min-width:72px;color:#d4a52a">🟠 Claude</span>
+        <input id="llm-key-claude" type="password" placeholder="sk-ant-api03-…" value="${LLM_KEYS.claude||''}" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:4px 7px;font-size:11px">
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;min-width:72px;color:#4ade80">🟢 ChatGPT</span>
+        <input id="llm-key-openai" type="password" placeholder="sk-…" value="${LLM_KEYS.openai||''}" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:4px 7px;font-size:11px">
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;min-width:72px;color:#60a5fa">🔵 Gemini</span>
+        <input id="llm-key-gemini" type="password" placeholder="AIza…" value="${LLM_KEYS.gemini||''}" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:4px 7px;font-size:11px">
+      </div>
+    </div>
+    <button class="btn" style="margin-top:6px;font-size:10px;border-color:#a78bfa;color:#a78bfa" onclick="saveLLMKeys()">💾 Save Keys</button>
+  </div>
+
+  <div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px">
+    <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px">Active LLM Countries</div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">
+      ${llmSlots.length ? llmSlots.map(([id,s])=>{
+        const m=PLAYER_META[id]||PLAYABLE_COUNTRIES[id];
+        const submitted = GS.countries[id]?.submitted;
+        return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid #7c3aed55;border-radius:4px;padding:2px 8px;font-size:11px">
+          ${icons[s.llmModel]||'🤖'} ${m?.flag||'🌍'} ${id} ${submitted?'<span style="color:var(--green);font-size:9px">✓</span>':'<span style="color:var(--orange);font-size:9px">…</span>'}
+          <button class="btn" style="font-size:9px;padding:1px 5px;border-color:var(--red);color:var(--red);margin-left:2px" onclick="removeRoomAI('${id}')">✕</button>
+        </span>`;
+      }).join('') : '<span style="color:var(--text-dim);font-size:11px">No LLM AI countries added yet</span>'}
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select id="llmCountryPicker" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:11px">
+        <option value="">— Country —</option>
+        ${available.map(k=>{ const pc=PLAYABLE_COUNTRIES[k]; return `<option value="${k}">${pc?.flag||''} ${k}</option>`; }).join('')}
+      </select>
+      <select id="llmProviderPicker" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:11px">
+        <option value="claude">🟠 Claude (Opus)</option>
+        <option value="openai">🟢 ChatGPT (GPT-4o)</option>
+        <option value="gemini">🔵 Gemini (1.5 Flash)</option>
+      </select>
+      <button class="btn" style="border-color:#a78bfa;color:#a78bfa" onclick="addLLMAI(document.getElementById('llmCountryPicker').value,document.getElementById('llmProviderPicker').value)">➕ Add</button>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:8px">
+    <button class="btn primary" style="background:#7c3aed;border-color:#7c3aed" onclick="submitLLMAITurns()">🧠 Submit LLM Turns${pendingCount?' ('+pendingCount+' pending)':''}</button>
+    <span style="font-size:10px;color:var(--text-dim)">Calls each AI's API and submits their turn decision. Falls back to rule-based AI if an API call fails.</span>
+  </div>
 </div>`;
 }
 
